@@ -1,13 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { isAdminByTelegramId } from "@/lib/admin";
 
 /**
  * GET /api/admin/tasks
  * 
  * Get all tasks for admin management
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    // Check admin permission
+    const telegramIdStr = request.headers.get("x-telegram-id");
+    if (!telegramIdStr || !(await isAdminByTelegramId(telegramIdStr))) {
+      return NextResponse.json(
+        { success: false, message: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
     const tasks = await prisma.task.findMany({
       orderBy: { createdAt: "desc" },
     });
@@ -34,6 +44,15 @@ export async function GET() {
  */
 export async function POST(request: NextRequest) {
   try {
+    // Check admin permission
+    const telegramIdStr = request.headers.get("x-telegram-id");
+    if (!telegramIdStr || !(await isAdminByTelegramId(telegramIdStr))) {
+      return NextResponse.json(
+        { success: false, message: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
     const body = await request.json();
     const { title, description, reward, link, icon, type } = body;
 
@@ -90,6 +109,15 @@ export async function POST(request: NextRequest) {
  */
 export async function PATCH(request: NextRequest) {
   try {
+    // Check admin permission
+    const telegramIdStr = request.headers.get("x-telegram-id");
+    if (!telegramIdStr || !(await isAdminByTelegramId(telegramIdStr))) {
+      return NextResponse.json(
+        { success: false, message: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
     const body = await request.json();
     const { taskId, isActive, title, description, reward, link, icon, type } = body;
 
@@ -166,6 +194,15 @@ export async function PATCH(request: NextRequest) {
  */
 export async function DELETE(request: NextRequest) {
   try {
+    // Check admin permission
+    const telegramIdStr = request.headers.get("x-telegram-id");
+    if (!telegramIdStr || !(await isAdminByTelegramId(telegramIdStr))) {
+      return NextResponse.json(
+        { success: false, message: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
     const body = await request.json();
     const { taskId } = body;
 

@@ -5,9 +5,6 @@ import { prisma } from "@/lib/prisma";
 const MAX_FARMING_DURATION_MS = 8 * 60 * 60 * 1000;
 const MAX_FARMING_DURATION_MINUTES = 8 * 60;
 
-// Hardcoded test user ID for development
-const TEST_USER_ID = "61c958da-e508-4184-933f-136f9b055f2b";
-
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();

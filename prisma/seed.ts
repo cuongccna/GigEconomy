@@ -15,7 +15,6 @@ async function main() {
   console.log("👤 Creating test user...");
   const user = await prisma.user.create({
     data: {
-      id: "61c958da-e508-4184-933f-136f9b055f2b",
       telegramId: BigInt(123456789),
       username: "cyber_degen",
       balance: 12500,

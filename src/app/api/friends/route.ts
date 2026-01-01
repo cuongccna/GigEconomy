@@ -1,17 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-// Hardcoded test user ID for development
-const TEST_USER_ID = "61c958da-e508-4184-933f-136f9b055f2b";
-
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
-    const userId = searchParams.get("userId") || TEST_USER_ID;
+    const telegramIdStr = request.headers.get("x-telegram-id");
+
+    if (!telegramIdStr) {
+      return NextResponse.json(
+        { success: false, message: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    const telegramId = BigInt(telegramIdStr);
 
     // Find the user
     const user = await prisma.user.findUnique({
-      where: { id: userId },
+      where: { telegramId },
       select: {
         id: true,
         telegramId: true,

@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-// Test user ID (from seed)
-const TEST_USER_ID = "61c958da-e508-4184-933f-136f9b055f2b";
-
 // Spin cost equivalent
 const SPIN_COST = 500;
 
@@ -18,6 +15,18 @@ const SPIN_COST = 500;
  */
 export async function POST(request: NextRequest) {
   try {
+    // Get user ID from header
+    const telegramIdStr = request.headers.get("x-telegram-id");
+    
+    if (!telegramIdStr) {
+      return NextResponse.json(
+        { success: false, error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    const telegramId = BigInt(telegramIdStr);
+
     const body = await request.json();
     const { itemId } = body;
 
@@ -49,7 +58,7 @@ export async function POST(request: NextRequest) {
 
     // Get user with current balance
     const user = await prisma.user.findUnique({
-      where: { id: TEST_USER_ID },
+      where: { telegramId },
       include: {
         userItems: {
           where: { itemId },
@@ -133,7 +142,7 @@ export async function POST(request: NextRequest) {
     const result = await prisma.$transaction(async (tx) => {
       // Deduct balance (with any additional balance changes)
       const updatedUser = await tx.user.update({
-        where: { id: TEST_USER_ID },
+        where: { id: user.id },
         data: {
           balance: { decrement: item.price },
           ...additionalUpdates,
@@ -153,7 +162,7 @@ export async function POST(request: NextRequest) {
         } else {
           await tx.userItem.create({
             data: {
-              userId: TEST_USER_ID,
+              userId: user.id,
               itemId: item.id,
               quantity: 1,
             },
@@ -163,7 +172,7 @@ export async function POST(request: NextRequest) {
         // For permanent items, just create the record
         await tx.userItem.create({
           data: {
-            userId: TEST_USER_ID,
+            userId: user.id,
             itemId: item.id,
             quantity: 1,
           },
@@ -173,7 +182,7 @@ export async function POST(request: NextRequest) {
       return updatedUser;
     });
 
-    console.log(`🛒 Purchase: ${item.name} by user ${TEST_USER_ID} for ${item.price} $GIG`);
+    console.log(`🛒 Purchase: ${item.name} by user ${user.id} for ${item.price} $GIG`);
 
     return NextResponse.json({
       success: true,

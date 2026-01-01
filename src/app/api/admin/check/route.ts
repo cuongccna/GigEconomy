@@ -1,8 +1,5 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-
-// Test user ID (from seed)
-const TEST_USER_ID = "61c958da-e508-4184-933f-136f9b055f2b";
 
 /**
  * GET /api/admin/check
@@ -11,10 +8,23 @@ const TEST_USER_ID = "61c958da-e508-4184-933f-136f9b055f2b";
  * 
  * Returns: { isAdmin: boolean, user: {...} | null }
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    // Get user ID from header
+    const telegramIdStr = request.headers.get("x-telegram-id");
+    
+    if (!telegramIdStr) {
+      return NextResponse.json({
+        isAdmin: false,
+        user: null,
+        error: "Unauthorized",
+      });
+    }
+
+    const telegramId = BigInt(telegramIdStr);
+
     const user = await prisma.user.findUnique({
-      where: { id: TEST_USER_ID },
+      where: { telegramId },
       select: {
         id: true,
         username: true,
@@ -32,8 +42,11 @@ export async function GET() {
       });
     }
 
+    // Only allow specific username
+    const isAllowed = user.role === "ADMIN" && user.username === "San_Keo_Tinh_Hoa";
+
     return NextResponse.json({
-      isAdmin: user.role === "ADMIN",
+      isAdmin: isAllowed,
       user: {
         id: user.id,
         username: user.username,

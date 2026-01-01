@@ -26,9 +26,6 @@ const isYesterday = (date1: Date, date2: Date): boolean => {
   return isSameDay(date1, yesterday);
 };
 
-// Hardcoded test user ID for development
-const TEST_USER_ID = "61c958da-e508-4184-933f-136f9b055f2b";
-
 export async function POST(request: NextRequest) {
   try {
     // Get user ID from header

@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-// Test user ID (from seed)
-const TEST_USER_ID = "61c958da-e508-4184-933f-136f9b055f2b";
-
 // Spin cost equivalent
 const SPIN_VALUE = 500;
 
@@ -24,6 +21,28 @@ const SPIN_VALUE = 500;
  */
 export async function POST(request: NextRequest) {
   try {
+    const telegramIdStr = request.headers.get("x-telegram-id");
+
+    if (!telegramIdStr) {
+      return NextResponse.json(
+        { success: false, error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    const telegramId = BigInt(telegramIdStr);
+
+    const user = await prisma.user.findUnique({
+      where: { telegramId },
+    });
+
+    if (!user) {
+      return NextResponse.json(
+        { success: false, error: "User not found" },
+        { status: 404 }
+      );
+    }
+
     const body = await request.json();
     const { itemId } = body;
 
@@ -37,7 +56,7 @@ export async function POST(request: NextRequest) {
     // Get user's item with details
     const userItem = await prisma.userItem.findFirst({
       where: {
-        userId: TEST_USER_ID,
+        userId: user.id,
         itemId: itemId,
       },
       include: {
@@ -79,7 +98,7 @@ export async function POST(request: NextRequest) {
         // Energy Drink: Add spin value to balance
         await prisma.$transaction([
           prisma.user.update({
-            where: { id: TEST_USER_ID },
+            where: { id: user.id },
             data: { balance: { increment: SPIN_VALUE } },
           }),
           prisma.userItem.update({
@@ -106,7 +125,7 @@ export async function POST(request: NextRequest) {
         
         await prisma.$transaction([
           prisma.user.update({
-            where: { id: TEST_USER_ID },
+            where: { id: user.id },
             data: { isShielded: true },
           }),
           prisma.userItem.update({
@@ -146,12 +165,12 @@ export async function POST(request: NextRequest) {
     // Get updated inventory
     const updatedUserItem = await prisma.userItem.findFirst({
       where: {
-        userId: TEST_USER_ID,
+        userId: user.id,
         itemId: itemId,
       },
     });
 
-    console.log(`🎒 Used item: ${userItem.item.name} by user ${TEST_USER_ID}`);
+    console.log(`🎒 Used item: ${userItem.item.name} by user ${user.id}`);
 
     return NextResponse.json({
       success: true,

@@ -1,11 +1,30 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-// Hardcoded test user ID for MVP (from seed)
-const TEST_USER_ID = "61c958da-e508-4184-933f-136f9b055f2b";
-
 export async function POST(request: NextRequest) {
   try {
+    const telegramIdStr = request.headers.get("x-telegram-id");
+
+    if (!telegramIdStr) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    const telegramId = BigInt(telegramIdStr);
+
+    const user = await prisma.user.findUnique({
+      where: { telegramId },
+    });
+
+    if (!user) {
+      return NextResponse.json(
+        { error: "User not found" },
+        { status: 404 }
+      );
+    }
+
     const body = await request.json();
     const { taskId } = body;
 
@@ -39,7 +58,7 @@ export async function POST(request: NextRequest) {
     const existingUserTask = await prisma.userTask.findUnique({
       where: {
         userId_taskId: {
-          userId: TEST_USER_ID,
+          userId: user.id,
           taskId: taskId,
         },
       },
@@ -57,7 +76,7 @@ export async function POST(request: NextRequest) {
       // Create the UserTask record
       await tx.userTask.create({
         data: {
-          userId: TEST_USER_ID,
+          userId: user.id,
           taskId: taskId,
           status: "COMPLETED",
         },
@@ -65,7 +84,7 @@ export async function POST(request: NextRequest) {
 
       // Update user balance
       const updatedUser = await tx.user.update({
-        where: { id: TEST_USER_ID },
+        where: { id: user.id },
         data: {
           balance: {
             increment: task.reward,

@@ -1,5 +1,6 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { isAdminByTelegramId } from "@/lib/admin";
 
 /**
  * GET /api/admin/stats
@@ -8,8 +9,17 @@ import { prisma } from "@/lib/prisma";
  * 
  * Returns: { success: boolean, stats: {...} }
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    // Check admin permission
+    const telegramIdStr = request.headers.get("x-telegram-id");
+    if (!telegramIdStr || !(await isAdminByTelegramId(telegramIdStr))) {
+      return NextResponse.json(
+        { success: false, message: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
     // Get total users
     const totalUsers = await prisma.user.count();
 

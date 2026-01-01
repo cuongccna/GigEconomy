@@ -1,8 +1,5 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-
-// Hardcoded test user ID for development
-const TEST_USER_ID = "61c958da-e508-4184-933f-136f9b055f2b";
 
 // Spin cost
 const SPIN_COST = 500;
@@ -36,14 +33,24 @@ function getRewardFromRandom(random: number): typeof REWARDS[number] {
 
 // No longer calculating degree on server - frontend handles this
 
-export async function POST() {
+export async function POST(request: NextRequest) {
   try {
-    const userId = TEST_USER_ID;
+    // Get user ID from header
+    const telegramIdStr = request.headers.get("x-telegram-id");
+    
+    if (!telegramIdStr) {
+      return NextResponse.json(
+        { success: false, message: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    const telegramId = BigInt(telegramIdStr);
 
     // Get user and check balance
     const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { balance: true },
+      where: { telegramId },
+      select: { id: true, balance: true },
     });
 
     if (!user) {
@@ -77,13 +84,13 @@ export async function POST() {
     // Update user balance and create spin history in transaction
     const [updatedUser] = await prisma.$transaction([
       prisma.user.update({
-        where: { id: userId },
+        where: { id: user.id },
         data: { balance: { increment: netChange } },
         select: { balance: true },
       }),
       prisma.spinHistory.create({
         data: {
-          userId,
+          userId: user.id,
           rewardType: reward.type,
           amount: reward.amount,
         },
@@ -109,12 +116,22 @@ export async function POST() {
 }
 
 // GET endpoint to get spin info and history
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const userId = TEST_USER_ID;
+    // Get user ID from header
+    const telegramIdStr = request.headers.get("x-telegram-id");
+    
+    if (!telegramIdStr) {
+      return NextResponse.json(
+        { success: false, message: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    const telegramId = BigInt(telegramIdStr);
 
     const user = await prisma.user.findUnique({
-      where: { id: userId },
+      where: { telegramId },
       select: { 
         balance: true,
         spinHistory: {
@@ -131,10 +148,18 @@ export async function GET() {
     });
 
     if (!user) {
-      return NextResponse.json(
-        { success: false, message: "User not found" },
-        { status: 404 }
-      );
+      // Return default state if user not found
+      return NextResponse.json({
+        success: true,
+        balance: 0,
+        spinCost: SPIN_COST,
+        canSpin: false,
+        recentSpins: [],
+        rewards: REWARDS.map(r => ({
+          type: r.type,
+          amount: r.amount,
+        })),
+      });
     }
 
     return NextResponse.json({

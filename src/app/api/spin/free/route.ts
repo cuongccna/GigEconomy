@@ -1,8 +1,5 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-
-// Hardcoded test user ID for development
-const TEST_USER_ID = "61c958da-e508-4184-933f-136f9b055f2b";
 
 // Free spin reward amount
 const FREE_SPIN_REWARD = 500;
@@ -17,14 +14,24 @@ const FREE_SPIN_REWARD = 500;
  * server-to-server callback, not directly from the client.
  * For MVP, we allow client calls but should add rate limiting.
  */
-export async function POST() {
+export async function POST(request: NextRequest) {
   try {
-    const userId = TEST_USER_ID;
+    // Get user ID from header
+    const telegramIdStr = request.headers.get("x-telegram-id");
+    
+    if (!telegramIdStr) {
+      return NextResponse.json(
+        { success: false, error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    const telegramId = BigInt(telegramIdStr);
 
     // Get user
     const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { balance: true, telegramId: true },
+      where: { telegramId },
+      select: { id: true, balance: true, telegramId: true },
     });
 
     if (!user) {
@@ -36,13 +43,13 @@ export async function POST() {
 
     // Add free spin reward to balance
     const updatedUser = await prisma.user.update({
-      where: { id: userId },
+      where: { id: user.id },
       data: { balance: { increment: FREE_SPIN_REWARD } },
       select: { balance: true },
     });
 
     // Log the free spin grant (optional - for tracking)
-    console.log(`Free spin granted: ${FREE_SPIN_REWARD} $GIG to user ${userId}`);
+    console.log(`Free spin granted: ${FREE_SPIN_REWARD} $GIG to user ${user.id}`);
 
     return NextResponse.json({
       success: true,

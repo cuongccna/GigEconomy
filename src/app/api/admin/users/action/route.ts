@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { isAdminByTelegramId } from "@/lib/admin";
 
 /**
  * POST /api/admin/users/action
@@ -16,6 +17,15 @@ import { prisma } from "@/lib/prisma";
  */
 export async function POST(request: NextRequest) {
   try {
+    // Check admin permission
+    const telegramIdStr = request.headers.get("x-telegram-id");
+    if (!telegramIdStr || !(await isAdminByTelegramId(telegramIdStr))) {
+      return NextResponse.json(
+        { success: false, message: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
     const body = await request.json();
     const { action, userId, amount, role, adminId } = body;
 

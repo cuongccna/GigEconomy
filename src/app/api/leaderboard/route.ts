@@ -1,8 +1,5 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-
-// Test user ID (from seed)
-const TEST_USER_ID = "61c958da-e508-4184-933f-136f9b055f2b";
 
 // Generate avatar placeholder URL based on user id
 function getAvatarUrl(userId: string, username?: string | null): string {
@@ -46,8 +43,20 @@ function formatBalance(balance: number): string {
  *   totalUsers: number
  * }
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    // Get user ID from header
+    const telegramIdStr = request.headers.get("x-telegram-id");
+    
+    if (!telegramIdStr) {
+      return NextResponse.json(
+        { success: false, message: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    const telegramId = BigInt(telegramIdStr);
+
     // Fetch Top 50 users by balance (Top Miners)
     const topMinerUsers = await prisma.user.findMany({
       orderBy: { balance: "desc" },
@@ -80,7 +89,7 @@ export async function GET() {
 
     // Get current user data for rank calculation
     const currentUser = await prisma.user.findUnique({
-      where: { id: TEST_USER_ID },
+      where: { telegramId },
       select: {
         id: true,
         username: true,
@@ -120,7 +129,7 @@ export async function GET() {
       balance: user.balance,
       balanceFormatted: formatBalance(user.balance),
       avatarUrl: getAvatarUrl(user.id, user.username),
-      isCurrentUser: user.id === TEST_USER_ID,
+      isCurrentUser: currentUser ? user.id === currentUser.id : false,
     }));
 
     // Format top referrers
@@ -131,7 +140,7 @@ export async function GET() {
       displayName: user.username || `Agent #${user.id.slice(0, 4)}`,
       referralCount: user.referralCount,
       avatarUrl: getAvatarUrl(user.id, user.username),
-      isCurrentUser: user.id === TEST_USER_ID,
+      isCurrentUser: currentUser ? user.id === currentUser.id : false,
     }));
 
     // Current user's stats for the leaderboard
