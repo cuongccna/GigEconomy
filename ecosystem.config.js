@@ -12,7 +12,7 @@ module.exports = {
       max_memory_restart: '500M',
       env: {
         NODE_ENV: 'production',
-        PORT: 3001
+        PORT: 3006
       },
       error_file: '/var/www/GigEconomy/logs/app-error.log',
       out_file: '/var/www/GigEconomy/logs/app-output.log',

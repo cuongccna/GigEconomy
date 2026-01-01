@@ -84,7 +84,7 @@ NEXT_PUBLIC_ADSGRAM_BLOCK_ID="20377"
 
 # Production
 NODE_ENV="production"
-PORT=3001
+PORT=3006
 EOF
         echo -e "${GREEN}✓ .env created${NC}"
         echo -e "${YELLOW}⚠ Remember to update TELEGRAM_BOT_TOKEN in .env!${NC}"
@@ -95,14 +95,28 @@ EOF
         # Install bot dependencies
         npm install node-telegram-bot-api dotenv
         
-        echo -e "${CYAN}[4/6] Setting up database...${NC}"
+        echo -e "${CYAN}[4/7] Setting up database...${NC}"
         npx prisma generate
         npx prisma migrate deploy
         
-        echo -e "${CYAN}[5/6] Building application...${NC}"
+        echo -e "${CYAN}[5/7] Seeding database...${NC}"
+        # Install ts-node for seeding
+        npm install -g ts-node
+        
+        # Seed tasks
+        echo "Seeding tasks..."
+        npx ts-node --compiler-options '{"module":"CommonJS"}' prisma/seed.ts || echo "Task seed skipped"
+        
+        # Seed shop items
+        echo "Seeding shop items..."
+        npx ts-node --compiler-options '{"module":"CommonJS"}' prisma/seed_shop.ts || echo "Shop seed skipped"
+        
+        echo -e "${GREEN}✓ Database seeded${NC}"
+        
+        echo -e "${CYAN}[6/7] Building application...${NC}"
         npm run build
         
-        echo -e "${CYAN}[6/6] Starting with PM2...${NC}"
+        echo -e "${CYAN}[7/7] Starting with PM2...${NC}"
         mkdir -p logs
         
         # Create PM2 config for both app and bot
@@ -234,7 +248,7 @@ server {
     server_name dilink.io.vn www.dilink.io.vn;
     
     location / {
-        proxy_pass http://127.0.0.1:3001;
+        proxy_pass http://127.0.0.1:3006;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection 'upgrade';
