@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "users" ADD COLUMN     "isShielded" BOOLEAN NOT NULL DEFAULT false,
+ADD COLUMN     "spinLuckBonus" DOUBLE PRECISION NOT NULL DEFAULT 0;

@@ -1,0 +1,104 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  background-color: #050505;
+  color: #ffffff;
+  font-family: "Courier Prime", ui-monospace, monospace;
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+/* Cyberpunk Grid Background */
+.cyber-grid {
+  background-image:
+    linear-gradient(rgba(0, 255, 148, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 255, 148, 0.03) 1px, transparent 1px);
+  background-size: 50px 50px;
+  background-position: center center;
+}
+
+/* Dark Gradient Overlay */
+.dark-gradient {
+  background: radial-gradient(ellipse at top, rgba(112, 0, 255, 0.15) 0%, transparent 50%),
+              radial-gradient(ellipse at bottom, rgba(0, 255, 148, 0.1) 0%, transparent 50%),
+              #050505;
+}
+
+/* Neon Glow Text */
+.neon-glow {
+  text-shadow:
+    0 0 10px rgba(0, 255, 148, 0.8),
+    0 0 20px rgba(0, 255, 148, 0.6),
+    0 0 30px rgba(0, 255, 148, 0.4),
+    0 0 40px rgba(0, 255, 148, 0.2);
+}
+
+/* Glitch Text Effect */
+@keyframes glitch {
+  0% {
+    text-shadow:
+      0.05em 0 0 #00ff94,
+      -0.05em -0.025em 0 #7000ff,
+      0.025em 0.05em 0 #ff003c;
+  }
+  14% {
+    text-shadow:
+      0.05em 0 0 #00ff94,
+      -0.05em -0.025em 0 #7000ff,
+      0.025em 0.05em 0 #ff003c;
+  }
+  15% {
+    text-shadow:
+      -0.05em -0.025em 0 #00ff94,
+      0.025em 0.025em 0 #7000ff,
+      -0.05em -0.05em 0 #ff003c;
+  }
+  49% {
+    text-shadow:
+      -0.05em -0.025em 0 #00ff94,
+      0.025em 0.025em 0 #7000ff,
+      -0.05em -0.05em 0 #ff003c;
+  }
+  50% {
+    text-shadow:
+      0.025em 0.05em 0 #00ff94,
+      0.05em 0 0 #7000ff,
+      0 -0.05em 0 #ff003c;
+  }
+  99% {
+    text-shadow:
+      0.025em 0.05em 0 #00ff94,
+      0.05em 0 0 #7000ff,
+      0 -0.05em 0 #ff003c;
+  }
+  100% {
+    text-shadow:
+      -0.025em 0 0 #00ff94,
+      -0.025em -0.025em 0 #7000ff,
+      -0.025em -0.05em 0 #ff003c;
+  }
+}
+
+.glitch-text {
+  animation: glitch 500ms infinite;
+}
+
+/* Pulse Glow Animation */
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 20px rgba(0, 255, 148, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 40px rgba(0, 255, 148, 0.8);
+  }
+}
+
+.pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}

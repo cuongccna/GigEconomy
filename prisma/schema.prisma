@@ -1,0 +1,140 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==================== MODELS ====================
+
+model User {
+  id            String     @id @default(uuid())
+  telegramId    BigInt     @unique
+  username      String?
+  balance       Float      @default(0)
+  role          String     @default("USER") // USER, ADMIN
+  isBanned      Boolean    @default(false)
+  createdAt     DateTime   @default(now())
+  
+  // Referral fields
+  referredById  String?
+  referredBy    User?      @relation("Referrals", fields: [referredById], references: [id])
+  referrals     User[]     @relation("Referrals")
+  referralCount Int        @default(0)
+  
+  // Daily check-in fields
+  lastCheckIn   DateTime?
+  streak        Int        @default(0)
+  isShielded    Boolean    @default(false) // Streak Shield protection
+  
+  // Farming fields
+  farmingStartedAt DateTime?
+  farmingRate      Float     @default(0.5)
+  
+  // Luck bonus (from Lucky Charm)
+  spinLuckBonus    Float     @default(0)
+  
+  // Relations
+  userTasks    UserTask[]
+  spinHistory  SpinHistory[]
+  userItems    UserItem[]
+  
+  @@map("users")
+}
+
+model Task {
+  id          String   @id @default(uuid())
+  title       String
+  description String   @default("")
+  reward      Float
+  link        String
+  icon        String
+  type        String   @default("social")
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  
+  // Relations
+  userTasks UserTask[]
+  
+  @@map("tasks")
+}
+
+model UserTask {
+  id          String   @id @default(uuid())
+  userId      String
+  taskId      String
+  status      String   @default("COMPLETED")
+  completedAt DateTime @default(now())
+  
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, taskId])
+  @@map("user_tasks")
+}
+
+model SpinHistory {
+  id         String   @id @default(uuid())
+  userId     String
+  rewardType String   // MISS, SMALL, MEDIUM, BIG, JACKPOT
+  amount     Float
+  createdAt  DateTime @default(now())
+  
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("spin_history")
+}
+
+model AdReward {
+  id           String   @id @default(uuid())
+  recordId     String   @unique  // Adsgram transaction ID - prevents double claiming
+  telegramId   BigInt
+  rewardType   String   // "FREE_SPIN", "BALANCE"
+  amount       Float
+  ipAddress    String?
+  createdAt    DateTime @default(now())
+  
+  @@index([telegramId])
+  @@map("ad_rewards")
+}
+
+// ==================== SHOP SYSTEM ====================
+
+model Item {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String
+  price       Float
+  image       String   // URL to item image
+  type        String   // "consumable", "permanent"
+  effect      String   // JSON or description of what the item does
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  
+  // Relations
+  userItems   UserItem[]
+  
+  @@map("items")
+}
+
+model UserItem {
+  id         String   @id @default(uuid())
+  userId     String
+  itemId     String
+  quantity   Int      @default(1)
+  acquiredAt DateTime @default(now())
+  
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  item Item @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, itemId])
+  @@map("user_items")
+}
