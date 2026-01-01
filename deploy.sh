@@ -145,7 +145,9 @@ module.exports = {
 };
 EOF
         
-        pm2 delete all 2>/dev/null || true
+        # Only delete gigx apps, not all apps
+        pm2 delete $APP_NAME 2>/dev/null || true
+        pm2 delete $BOT_NAME 2>/dev/null || true
         pm2 start ecosystem.config.js
         pm2 save
         pm2 startup
@@ -171,7 +173,7 @@ EOF
         npx prisma generate
         npx prisma migrate deploy
         npm run build
-        pm2 restart all
+        pm2 restart $APP_NAME $BOT_NAME
         
         echo -e "${GREEN}✓ Update complete!${NC}"
         pm2 status
