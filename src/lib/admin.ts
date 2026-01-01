@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 export type UserRole = "USER" | "ADMIN";
 
 // Only this username is allowed to access admin features
-const ALLOWED_ADMIN_USERNAME = "cuongccna";
+// const ALLOWED_ADMIN_USERNAME = "cuongccna";
 
 /**
  * Check if a user is an admin by their user ID
@@ -14,7 +14,7 @@ export async function isAdmin(userId: string): Promise<boolean> {
       where: { id: userId },
       select: { role: true, username: true },
     });
-    return user?.role === "ADMIN" && user?.username === ALLOWED_ADMIN_USERNAME;
+    return user?.role === "ADMIN";
   } catch (error) {
     console.error("Error checking admin status:", error);
     return false;
@@ -31,7 +31,7 @@ export async function isAdminByTelegramId(telegramId: bigint | string | number):
       where: { telegramId: tid },
       select: { role: true, username: true },
     });
-    return user?.role === "ADMIN" && user?.username === ALLOWED_ADMIN_USERNAME;
+    return user?.role === "ADMIN";
   } catch (error) {
     console.error("Error checking admin status:", error);
     return false;

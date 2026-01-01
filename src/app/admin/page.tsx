@@ -12,6 +12,7 @@ import {
   Zap,
   UserPlus,
 } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
 
 interface DashboardStats {
   totalUsers: number;
@@ -59,13 +60,19 @@ function StatCard({
 }
 
 export default function AdminDashboard() {
+  const { user } = useAuth();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const fetchStats = async () => {
+      if (!user?.id) return;
       try {
-        const response = await fetch("/api/admin/stats");
+        const response = await fetch("/api/admin/stats", {
+          headers: {
+            "x-telegram-id": user.id.toString()
+          }
+        });
         const data = await response.json();
         if (data.success) {
           setStats(data.stats);
@@ -77,8 +84,10 @@ export default function AdminDashboard() {
       }
     };
 
-    fetchStats();
-  }, []);
+    if (user?.id) {
+      fetchStats();
+    }
+  }, [user]);
 
   // Default stats while loading
   const defaultStats: DashboardStats = {
