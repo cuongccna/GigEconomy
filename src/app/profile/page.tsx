@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { 
   Settings, 
@@ -78,6 +79,7 @@ const itemVariants = {
 };
 
 export default function ProfilePage() {
+  const router = useRouter();
   const { user } = useAuth();
   const wallet = useTonWallet();
   const [tonConnectUI] = useTonConnectUI();
@@ -151,7 +153,12 @@ export default function ProfilePage() {
     window.open("https://t.me/GigXSupport", "_blank");
   };
 
+  const handleFriends = () => {
+    router.push("/friends");
+  };
+
   const settingsItems = [
+    { icon: <Users size={20} />, label: "Friends", action: handleFriends },
     { icon: <Globe size={20} />, label: "Language", action: handleOpenLanguage },
     { icon: <HelpCircle size={20} />, label: "Support", action: handleOpenSupport },
     ...(wallet
@@ -387,7 +394,7 @@ export default function ProfilePage() {
         transition={{ delay: 1 }}
         className="text-center text-white/20 text-xs mt-8"
       >
-        GigX v1.0.0 • Powered by TON
+        GigX v1.0.0 • Powered by <span onClick={() => router.push("/admin")} className="cursor-pointer hover:text-white/40 transition-colors">TON</span>
       </motion.p>
 
       {/* Language Drawer */}

@@ -1,8 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { Shield, Lock, AlertTriangle, Loader2 } from "lucide-react";
+import { Shield, Lock, AlertTriangle, Loader2, ArrowLeft } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
 
 interface AdminUser {
   id: string;
@@ -16,14 +18,30 @@ export default function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const router = useRouter();
+  const { user } = useAuth();
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
   const [adminUser, setAdminUser] = useState<AdminUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const checkAdminAccess = async () => {
+      if (!user?.id) {
+        // Wait for user to be loaded or fail if not available after some time?
+        // Actually useAuth might take a moment.
+        // If user is null, we might want to wait or try anyway (but it will fail without ID).
+        // Let's assume if user is not loaded yet, we wait.
+        // But useAuth doesn't have an isLoading flag exposed here (it might be in the hook but we only destructured user).
+        // Let's check if we should proceed.
+        return; 
+      }
+
       try {
-        const response = await fetch("/api/admin/check");
+        const response = await fetch("/api/admin/check", {
+          headers: {
+            "x-telegram-id": user.id.toString(),
+          },
+        });
         const data = await response.json();
         
         setIsAdmin(data.isAdmin);
@@ -36,8 +54,17 @@ export default function AdminLayout({
       }
     };
 
-    checkAdminAccess();
-  }, []);
+    if (user) {
+      checkAdminAccess();
+    } else {
+      // If no user after a timeout, maybe stop loading?
+      // For now, let's just set loading to false after a delay if no user appears
+      const timer = setTimeout(() => {
+        if (!user) setIsLoading(false);
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [user]);
 
   // Loading state
   if (isLoading) {
@@ -141,6 +168,12 @@ export default function AdminLayout({
           <div className="flex items-center justify-between">
             {/* Logo */}
             <div className="flex items-center gap-3">
+              <button 
+                onClick={() => router.push("/")}
+                className="p-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors mr-2"
+              >
+                <ArrowLeft size={20} className="text-white" />
+              </button>
               <div className="p-2 rounded-lg bg-red-500/20 border border-red-500/30">
                 <Shield size={24} className="text-red-400" />
               </div>
