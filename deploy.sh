@@ -3,24 +3,17 @@
 # =====================================================
 # GigX Telegram Mini App - VPS Setup Script
 # =====================================================
-# Run this script directly on your VPS after cloning
-# Domain: https://dilink.io.vn
-# =====================================================
-#
-# USAGE:
-#   1. SSH into VPS: ssh root@72.61.114.103
-#   2. Clone repo: git clone <your-repo> /var/www/GigEconomy
-#   3. Run: cd /var/www/GigEconomy && chmod +x deploy.sh && ./deploy.sh
-#
-# =====================================================
 
-set -e  # Exit on error
+set -e
 
 # Configuration
 DEPLOY_PATH="/var/www/GigEconomy"
 APP_NAME="gigx-app"
 BOT_NAME="gigx-bot"
 APP_PORT="3006"
+DB_NAME="gigeconomy_db"
+DB_USER="gigeconomy_user"
+DB_PASS="Cuongnv@123"
 
 # Colors
 RED='\033[0;31m'
@@ -38,20 +31,29 @@ echo -e "${NC}"
 
 echo ""
 echo -e "${YELLOW}Select action:${NC}"
-echo "  1) First time setup (install dependencies + build + bot)"
+echo "  1) First time setup (install all + build + bot)"
 echo "  2) Update & rebuild (git pull + build)"
 echo "  3) Restart app only"
 echo "  4) Restart bot only"
 echo "  5) View logs (app or bot)"
 echo "  6) Setup Nginx + SSL"
 echo "  7) Configure Telegram Bot Token"
+echo "  8) Setup PostgreSQL database"
+echo "  9) Check system status"
 echo ""
-read -p "Enter choice [1-7]: " ACTION
+read -p "Enter choice [1-9]: " ACTION
 
 case $ACTION in
     1)
-        echo -e "${CYAN}[1/6] Installing system dependencies...${NC}"
+        echo -e "${CYAN}[1/8] Installing system dependencies...${NC}"
         apt update && apt upgrade -y
+        
+        # Install Git
+        if ! command -v git &> /dev/null; then
+            echo "Installing Git..."
+            apt install -y git
+        fi
+        echo -e "${GREEN}✓ Git $(git --version)${NC}"
         
         # Install Node.js 20.x
         if ! command -v node &> /dev/null; then
@@ -68,13 +70,54 @@ case $ACTION in
         fi
         echo -e "${GREEN}✓ PM2 installed${NC}"
         
-        echo -e "${CYAN}[2/6] Creating .env file...${NC}"
-        cat > $DEPLOY_PATH/.env << 'EOF'
+        # Install ts-node globally
+        npm install -g ts-node typescript
+        echo -e "${GREEN}✓ ts-node installed${NC}"
+        
+        echo -e "${CYAN}[2/8] Setting up firewall...${NC}"
+        if command -v ufw &> /dev/null; then
+            ufw allow 22/tcp
+            ufw allow 80/tcp
+            ufw allow 443/tcp
+            ufw allow $APP_PORT/tcp
+            ufw --force enable
+            echo -e "${GREEN}✓ Firewall configured${NC}"
+        else
+            echo -e "${YELLOW}⚠ UFW not installed, skipping firewall setup${NC}"
+        fi
+        
+        echo -e "${CYAN}[3/8] Checking PostgreSQL...${NC}"
+        if ! command -v psql &> /dev/null; then
+            echo -e "${YELLOW}⚠ PostgreSQL not installed!${NC}"
+            echo -e "${YELLOW}  Run option 8 first to setup PostgreSQL${NC}"
+            read -p "Install PostgreSQL now? (y/n): " INSTALL_PG
+            if [ "$INSTALL_PG" = "y" ]; then
+                apt install -y postgresql postgresql-contrib
+                systemctl start postgresql
+                systemctl enable postgresql
+                
+                # Create database and user
+                sudo -u postgres psql -c "CREATE USER $DB_USER WITH PASSWORD '$DB_PASS';" 2>/dev/null || echo "User exists"
+                sudo -u postgres psql -c "CREATE DATABASE $DB_NAME OWNER $DB_USER;" 2>/dev/null || echo "Database exists"
+                sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE $DB_NAME TO $DB_USER;"
+                echo -e "${GREEN}✓ PostgreSQL installed and configured${NC}"
+            fi
+        else
+            echo -e "${GREEN}✓ PostgreSQL installed${NC}"
+        fi
+        
+        echo -e "${CYAN}[4/8] Creating .env file...${NC}"
+        if [ -f "$DEPLOY_PATH/.env" ]; then
+            echo -e "${YELLOW}⚠ .env already exists. Backup created.${NC}"
+            cp $DEPLOY_PATH/.env $DEPLOY_PATH/.env.backup.$(date +%Y%m%d_%H%M%S)
+        fi
+        
+        cat > $DEPLOY_PATH/.env << EOF
 # Database
-DATABASE_URL="postgresql://gigeconomy_user:Cuongnv@123@localhost:5432/gigeconomy_db?schema=public"
+DATABASE_URL="postgresql://$DB_USER:$DB_PASS@localhost:5432/$DB_NAME?schema=public"
 
 # Telegram Bot Configuration
-TELEGRAM_BOT_TOKEN="YOUR_BOT_TOKEN_HERE"
+TELEGRAM_BOT_TOKEN="8537731869:AAGQBioR5xbQuSpKAGJFyllWBUZXR_uUEY8"
 WEBAPP_URL="https://dilink.io.vn"
 COMMUNITY_URL="https://t.me/GigXCommunity"
 
@@ -82,45 +125,49 @@ COMMUNITY_URL="https://t.me/GigXCommunity"
 ADSGRAM_SECRET_KEY="d1461d173e6e4b90add4046ff653be3b"
 NEXT_PUBLIC_ADSGRAM_BLOCK_ID="20377"
 
+# TON Connect (if needed)
+NEXT_PUBLIC_TON_MANIFEST_URL="https://dilink.io.vn/tonconnect-manifest.json"
+
 # Production
 NODE_ENV="production"
-PORT=3006
+PORT=$APP_PORT
 EOF
         echo -e "${GREEN}✓ .env created${NC}"
         echo -e "${YELLOW}⚠ Remember to update TELEGRAM_BOT_TOKEN in .env!${NC}"
         
-        echo -e "${CYAN}[3/6] Installing npm dependencies...${NC}"
+        echo -e "${CYAN}[5/8] Installing npm dependencies...${NC}"
         cd $DEPLOY_PATH
         npm ci --production=false
-        # Install bot dependencies
-        npm install node-telegram-bot-api dotenv
+        echo -e "${GREEN}✓ Dependencies installed${NC}"
         
-        echo -e "${CYAN}[4/7] Setting up database...${NC}"
+        echo -e "${CYAN}[6/8] Setting up database...${NC}"
         npx prisma generate
-        npx prisma migrate deploy
+        npx prisma migrate deploy || npx prisma db push
         
-        echo -e "${CYAN}[5/7] Seeding database...${NC}"
-        # Install ts-node for seeding
-        npm install -g ts-node
+        # Seed database
+        echo "Seeding database..."
+        if [ -f "prisma/seed.ts" ]; then
+            npx ts-node --compiler-options '{"module":"CommonJS"}' prisma/seed.ts || echo "Task seed skipped"
+        fi
+        if [ -f "prisma/seed_shop.ts" ]; then
+            npx ts-node --compiler-options '{"module":"CommonJS"}' prisma/seed_shop.ts || echo "Shop seed skipped"
+        fi
+        echo -e "${GREEN}✓ Database setup complete${NC}"
         
-        # Seed tasks
-        echo "Seeding tasks..."
-        npx ts-node --compiler-options '{"module":"CommonJS"}' prisma/seed.ts || echo "Task seed skipped"
-        
-        # Seed shop items
-        echo "Seeding shop items..."
-        npx ts-node --compiler-options '{"module":"CommonJS"}' prisma/seed_shop.ts || echo "Shop seed skipped"
-        
-        echo -e "${GREEN}✓ Database seeded${NC}"
-        
-        echo -e "${CYAN}[6/7] Building application...${NC}"
+        echo -e "${CYAN}[7/8] Building application...${NC}"
         npm run build
+        echo -e "${GREEN}✓ Build complete${NC}"
         
-        echo -e "${CYAN}[7/7] Starting with PM2...${NC}"
-        mkdir -p logs
+        echo -e "${CYAN}[8/8] Starting with PM2...${NC}"
+        mkdir -p $DEPLOY_PATH/logs
         
-        # Create PM2 config for both app and bot
-        cat > ecosystem.config.js << EOF
+        # Check if bot.js exists
+        if [ ! -f "$DEPLOY_PATH/bot.js" ]; then
+            echo -e "${YELLOW}⚠ bot.js not found! Bot will not start.${NC}"
+        fi
+        
+        # Create PM2 config
+        cat > $DEPLOY_PATH/ecosystem.config.js << EOF
 module.exports = {
   apps: [
     {
@@ -159,10 +206,9 @@ module.exports = {
 };
 EOF
         
-        # Only delete gigx apps, not all apps
         pm2 delete $APP_NAME 2>/dev/null || true
         pm2 delete $BOT_NAME 2>/dev/null || true
-        pm2 start ecosystem.config.js
+        pm2 start $DEPLOY_PATH/ecosystem.config.js
         pm2 save
         pm2 startup
         
@@ -171,10 +217,11 @@ EOF
         echo -e "${GREEN}║         ✓ Setup complete!                         ║${NC}"
         echo -e "${GREEN}╚═══════════════════════════════════════════════════╝${NC}"
         echo ""
-        echo -e "${YELLOW}⚠ IMPORTANT: Configure your bot token:${NC}"
-        echo -e "   Run option 7 or manually edit .env file"
+        echo -e "${YELLOW}Next steps:${NC}"
+        echo "  1. Run option 7 to configure Telegram Bot Token"
+        echo "  2. Run option 6 to setup Nginx + SSL"
         echo ""
-        echo -e "${YELLOW}Next: Run option 6 to setup Nginx + SSL${NC}"
+        pm2 status
         ;;
         
     2)
@@ -183,9 +230,8 @@ EOF
         
         git pull origin main
         npm ci --production=false
-        npm install node-telegram-bot-api dotenv
         npx prisma generate
-        npx prisma migrate deploy
+        npx prisma migrate deploy || npx prisma db push
         npm run build
         pm2 restart $APP_NAME $BOT_NAME
         
@@ -212,40 +258,33 @@ EOF
         echo "  1) Web App ($APP_NAME)"
         echo "  2) Telegram Bot ($BOT_NAME)"
         echo "  3) All"
-        read -p "Enter choice [1-3]: " LOG_CHOICE
+        echo "  4) Error logs only"
+        read -p "Enter choice [1-4]: " LOG_CHOICE
         
         case $LOG_CHOICE in
-            1)
-                echo -e "${CYAN}Showing app logs (Ctrl+C to exit)...${NC}"
-                pm2 logs $APP_NAME
-                ;;
-            2)
-                echo -e "${CYAN}Showing bot logs (Ctrl+C to exit)...${NC}"
-                pm2 logs $BOT_NAME
-                ;;
-            3)
-                echo -e "${CYAN}Showing all logs (Ctrl+C to exit)...${NC}"
-                pm2 logs
-                ;;
-            *)
-                pm2 logs
-                ;;
+            1) pm2 logs $APP_NAME ;;
+            2) pm2 logs $BOT_NAME ;;
+            3) pm2 logs ;;
+            4) pm2 logs --err ;;
+            *) pm2 logs ;;
         esac
         ;;
         
     6)
         echo -e "${CYAN}Setting up Nginx...${NC}"
         
-        # Install Nginx if not present
         if ! command -v nginx &> /dev/null; then
             apt install -y nginx
         fi
         
-        # Create Nginx config
         cat > /etc/nginx/sites-available/gigx << 'EOF'
 server {
     listen 80;
     server_name dilink.io.vn www.dilink.io.vn;
+    
+    # Security headers
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
     
     location / {
         proxy_pass http://127.0.0.1:3006;
@@ -257,6 +296,18 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_cache_bypass $http_upgrade;
+        
+        # Timeout settings
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+    }
+    
+    # Static files cache
+    location /_next/static {
+        proxy_pass http://127.0.0.1:3006;
+        proxy_cache_valid 60m;
+        add_header Cache-Control "public, immutable";
     }
 }
 EOF
@@ -267,54 +318,61 @@ EOF
         
         echo -e "${GREEN}✓ Nginx configured${NC}"
         
-        echo ""
         read -p "Setup SSL with Let's Encrypt? (y/n): " SETUP_SSL
-        
         if [ "$SETUP_SSL" = "y" ]; then
             apt install -y certbot python3-certbot-nginx
             certbot --nginx -d dilink.io.vn -d www.dilink.io.vn
             echo -e "${GREEN}✓ SSL configured${NC}"
         fi
-        
-        echo ""
-        echo -e "${GREEN}╔═══════════════════════════════════════════════════╗${NC}"
-        echo -e "${GREEN}║    ✓ Nginx setup complete!                        ║${NC}"
-        echo -e "${GREEN}║    App: https://dilink.io.vn                      ║${NC}"
-        echo -e "${GREEN}╚═══════════════════════════════════════════════════╝${NC}"
         ;;
 
     7)
         echo -e "${CYAN}Configure Telegram Bot Token${NC}"
-        echo ""
-        echo -e "${YELLOW}Get your bot token from @BotFather on Telegram${NC}"
-        echo ""
         read -p "Enter your Telegram Bot Token: " BOT_TOKEN
         
         if [ -n "$BOT_TOKEN" ]; then
-            # Update .env file with new token
             cd $DEPLOY_PATH
             sed -i "s|TELEGRAM_BOT_TOKEN=.*|TELEGRAM_BOT_TOKEN=\"$BOT_TOKEN\"|" .env
-            
-            echo -e "${GREEN}✓ Bot token updated in .env${NC}"
-            
-            # Restart bot to apply changes
-            pm2 restart $BOT_NAME 2>/dev/null || echo -e "${YELLOW}Bot not running yet. Start with option 1${NC}"
-            
-            echo ""
-            echo -e "${CYAN}╔═══════════════════════════════════════════════════╗${NC}"
-            echo -e "${CYAN}║  Bot Token Configuration Complete!                ║${NC}"
-            echo -e "${CYAN}╠═══════════════════════════════════════════════════╣${NC}"
-            echo -e "${CYAN}║  Now set up commands in @BotFather:               ║${NC}"
-            echo -e "${CYAN}║                                                   ║${NC}"
-            echo -e "${CYAN}║  /setcommands - then select your bot and send:   ║${NC}"
-            echo -e "${CYAN}║  start - 🚀 Launch GigX                           ║${NC}"
-            echo -e "${CYAN}║  help - 📖 How to Play                            ║${NC}"
-            echo -e "${CYAN}║                                                   ║${NC}"
-            echo -e "${CYAN}║  /setmenubutton - Set Web App as menu button     ║${NC}"
-            echo -e "${CYAN}╚═══════════════════════════════════════════════════╝${NC}"
-        else
-            echo -e "${RED}No token provided. Cancelled.${NC}"
+            echo -e "${GREEN}✓ Bot token updated${NC}"
+            pm2 restart $BOT_NAME 2>/dev/null || echo -e "${YELLOW}Bot not running${NC}"
         fi
+        ;;
+    
+    8)
+        echo -e "${CYAN}Setting up PostgreSQL...${NC}"
+        
+        apt install -y postgresql postgresql-contrib
+        systemctl start postgresql
+        systemctl enable postgresql
+        
+        echo "Creating database and user..."
+        sudo -u postgres psql << EOF
+CREATE USER $DB_USER WITH PASSWORD '$DB_PASS';
+CREATE DATABASE $DB_NAME OWNER $DB_USER;
+GRANT ALL PRIVILEGES ON DATABASE $DB_NAME TO $DB_USER;
+\q
+EOF
+        
+        echo -e "${GREEN}✓ PostgreSQL setup complete${NC}"
+        echo -e "${CYAN}Database: $DB_NAME${NC}"
+        echo -e "${CYAN}User: $DB_USER${NC}"
+        ;;
+    
+    9)
+        echo -e "${CYAN}System Status Check${NC}"
+        echo ""
+        echo -e "${YELLOW}=== Services ===${NC}"
+        systemctl is-active --quiet nginx && echo -e "Nginx: ${GREEN}Running${NC}" || echo -e "Nginx: ${RED}Stopped${NC}"
+        systemctl is-active --quiet postgresql && echo -e "PostgreSQL: ${GREEN}Running${NC}" || echo -e "PostgreSQL: ${RED}Stopped${NC}"
+        echo ""
+        echo -e "${YELLOW}=== PM2 Apps ===${NC}"
+        pm2 status
+        echo ""
+        echo -e "${YELLOW}=== Disk Usage ===${NC}"
+        df -h /
+        echo ""
+        echo -e "${YELLOW}=== Memory ===${NC}"
+        free -h
         ;;
         
     *)
@@ -324,10 +382,8 @@ EOF
 esac
 
 echo ""
-echo -e "${CYAN}PM2 Commands:${NC}"
-echo "  pm2 status              # Check all apps status"
-echo "  pm2 logs $APP_NAME      # View web app logs"
-echo "  pm2 logs $BOT_NAME      # View bot logs"
-echo "  pm2 restart all         # Restart all apps"
-echo "  pm2 monit               # Monitor all apps"
+echo -e "${CYAN}Quick Commands:${NC}"
+echo "  pm2 status        # Check status"
+echo "  pm2 logs          # View logs"
+echo "  pm2 monit         # Monitor"
 echo ""
