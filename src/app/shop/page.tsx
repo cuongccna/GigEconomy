@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { BottomNav } from "@/components/ui";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/hooks/useAuth";
 import confetti from "canvas-confetti";
 
 // Types
@@ -75,6 +76,7 @@ const itemVariants = {
 };
 
 export default function ShopPage() {
+  const { user } = useAuth();
   const [items, setItems] = useState<ShopItem[]>([]);
   const [balance, setBalance] = useState(0);
   const [ownedItems, setOwnedItems] = useState<OwnedItem[]>([]);
@@ -87,19 +89,12 @@ export default function ShopPage() {
 
   // Fetch shop data
   const fetchShop = useCallback(async () => {
-    try {
-      // Get user ID from Telegram WebApp
-      const telegramId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
-      
-      if (!telegramId) {
-        console.warn("No Telegram ID found, skipping fetch");
-        setIsLoading(false);
-        return;
-      }
+    if (!user?.id) return;
 
+    try {
       const response = await fetch("/api/shop", {
         headers: {
-          "x-telegram-id": telegramId.toString(),
+          "x-telegram-id": user.id.toString(),
         },
       });
       
@@ -126,7 +121,7 @@ export default function ShopPage() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     fetchShop();
@@ -134,14 +129,17 @@ export default function ShopPage() {
 
   // Handle purchase
   const handlePurchase = async () => {
-    if (!selectedItem || isPurchasing) return;
+    if (!selectedItem || isPurchasing || !user?.id) return;
 
     setIsPurchasing(true);
 
     try {
       const response = await fetch("/api/shop/buy", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "x-telegram-id": user.id.toString(),
+        },
         body: JSON.stringify({ itemId: selectedItem.id }),
       });
 
@@ -194,14 +192,17 @@ export default function ShopPage() {
   // Handle use item
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const handleUseItem = async (itemId: string, itemName: string) => {
-    if (isUsingItem) return;
+    if (isUsingItem || !user?.id) return;
 
     setIsUsingItem(itemId);
 
     try {
       const response = await fetch("/api/inventory/use", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "x-telegram-id": user.id.toString(),
+        },
         body: JSON.stringify({ itemId }),
       });
 
