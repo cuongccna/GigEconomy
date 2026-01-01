@@ -278,49 +278,51 @@ export function DailyCheckInDrawer({
               />
             </div>
 
-            {/* Action Button */}
-            <motion.button
-              whileTap={!hasClaimedToday ? { scale: 0.95 } : undefined}
-              onClick={handleClaim}
-              disabled={hasClaimedToday || isClaiming}
-              className={cn(
-                "w-full py-4 px-6 rounded-2xl font-bold text-lg transition-all duration-300",
-                hasClaimedToday || isClaiming
-                  ? "bg-white/10 text-white/40 cursor-not-allowed"
-                  : "bg-neon-green text-bg-dark shadow-[0_0_30px_rgba(0,255,148,0.4)]"
-              )}
-            >
-              {isClaiming ? (
-                <span className="flex items-center justify-center gap-2">
-                  <motion.div
-                    animate={{ rotate: 360 }}
-                    transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                  >
-                    <Sparkles size={20} />
-                  </motion.div>
-                  Claiming...
-                </span>
-              ) : hasClaimedToday ? (
-                "Come back tomorrow"
-              ) : (
-                <span className="flex items-center justify-center gap-2">
-                  <Gift size={20} />
-                  CLAIM +{nextReward.toLocaleString()} $GIG
-                </span>
-              )}
-            </motion.button>
+            {/* Action Button Container */}
+            <div className="relative w-full">
+              <motion.button
+                whileTap={!hasClaimedToday ? { scale: 0.95 } : undefined}
+                onClick={handleClaim}
+                disabled={hasClaimedToday || isClaiming}
+                className={cn(
+                  "w-full py-4 px-6 rounded-2xl font-bold text-lg transition-all duration-300 relative z-10",
+                  hasClaimedToday || isClaiming
+                    ? "bg-white/10 text-white/40 cursor-not-allowed"
+                    : "bg-neon-green text-bg-dark shadow-[0_0_30px_rgba(0,255,148,0.4)]"
+                )}
+              >
+                {isClaiming ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <motion.div
+                      animate={{ rotate: 360 }}
+                      transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                    >
+                      <Sparkles size={20} />
+                    </motion.div>
+                    Claiming...
+                  </span>
+                ) : hasClaimedToday ? (
+                  "Come back tomorrow"
+                ) : (
+                  <span className="flex items-center justify-center gap-2">
+                    <Gift size={20} />
+                    CLAIM +{nextReward.toLocaleString()} $GIG
+                  </span>
+                )}
+              </motion.button>
 
-            {/* Pulsing animation for claim button */}
-            {!hasClaimedToday && !isClaiming && (
-              <motion.div
-                className="absolute bottom-10 left-6 right-6 h-14 rounded-2xl border-2 border-neon-green pointer-events-none"
-                animate={{
-                  opacity: [0, 0.5, 0],
-                  scale: [1, 1.02, 1],
-                }}
-                transition={{ duration: 1.5, repeat: Infinity }}
-              />
-            )}
+              {/* Pulsing animation for claim button */}
+              {!hasClaimedToday && !isClaiming && (
+                <motion.div
+                  className="absolute inset-0 rounded-2xl border-2 border-neon-green pointer-events-none z-20"
+                  animate={{
+                    opacity: [0, 0.5, 0],
+                    scale: [1, 1.05, 1],
+                  }}
+                  transition={{ duration: 1.5, repeat: Infinity }}
+                />
+              )}
+            </div>
 
             {/* Next claim info */}
             {hasClaimedToday && (

@@ -5,8 +5,10 @@ import { motion } from "framer-motion";
 import { Gem, Copy, Check, ArrowDownToLine } from "lucide-react";
 import { useTonWallet, TonConnectButton } from "@tonconnect/ui-react";
 import { BottomNav } from "@/components/ui";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function WalletPage() {
+  const { user } = useAuth();
   const wallet = useTonWallet();
   const [copied, setCopied] = useState(false);
   const [userBalance, setUserBalance] = useState<number>(0);
@@ -14,16 +16,27 @@ export default function WalletPage() {
   // Fetch user balance
   useEffect(() => {
     const fetchBalance = async () => {
+      if (!user?.id) return;
+      
       try {
-        const response = await fetch("/api/tasks");
-        const data = await response.json();
-        setUserBalance(data.userBalance);
+        const response = await fetch("/api/tasks", {
+          headers: {
+            "x-telegram-id": user.id.toString(),
+          },
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          // Ensure userBalance is a number, default to 0
+          setUserBalance(typeof data.userBalance === 'number' ? data.userBalance : 0);
+        }
       } catch (error) {
         console.error("Failed to fetch balance:", error);
       }
     };
+    
     fetchBalance();
-  }, []);
+  }, [user]);
 
   // Format address to short version
   const formatAddress = (address: string) => {
