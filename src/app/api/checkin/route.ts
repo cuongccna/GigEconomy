@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
 // Reward values for each streak day (1-7, then cycles)
@@ -29,14 +29,24 @@ const isYesterday = (date1: Date, date2: Date): boolean => {
 // Hardcoded test user ID for development
 const TEST_USER_ID = "61c958da-e508-4184-933f-136f9b055f2b";
 
-export async function POST() {
+export async function POST(request: NextRequest) {
   try {
-    const userId = TEST_USER_ID;
+    // Get user ID from header
+    const telegramIdStr = request.headers.get("x-telegram-id");
+    
+    if (!telegramIdStr) {
+      return NextResponse.json(
+        { success: false, message: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    const telegramId = BigInt(telegramIdStr);
     const now = new Date();
 
     // Get current user
     const user = await prisma.user.findUnique({
-      where: { id: userId },
+      where: { telegramId },
     });
 
     if (!user) {
@@ -79,7 +89,7 @@ export async function POST() {
 
     // Update user atomically
     const updatedUser = await prisma.user.update({
-      where: { id: userId },
+      where: { id: user.id },
       data: {
         balance: { increment: rewardAmount },
         lastCheckIn: now,
@@ -105,13 +115,23 @@ export async function POST() {
 }
 
 // GET endpoint to check current check-in status
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const userId = TEST_USER_ID;
+    // Get user ID from header
+    const telegramIdStr = request.headers.get("x-telegram-id");
+    
+    if (!telegramIdStr) {
+      return NextResponse.json(
+        { success: false, message: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    const telegramId = BigInt(telegramIdStr);
     const now = new Date();
 
     const user = await prisma.user.findUnique({
-      where: { id: userId },
+      where: { telegramId },
       select: {
         streak: true,
         lastCheckIn: true,
@@ -120,10 +140,15 @@ export async function GET() {
     });
 
     if (!user) {
-      return NextResponse.json(
-        { success: false, message: "User not found" },
-        { status: 404 }
-      );
+      // Return default state if user not found
+      return NextResponse.json({
+        success: true,
+        streak: 0,
+        hasClaimedToday: false,
+        lastCheckIn: null,
+        balance: 0,
+        nextReward: getRewardForStreak(1),
+      });
     }
 
     const hasClaimedToday = user.lastCheckIn 

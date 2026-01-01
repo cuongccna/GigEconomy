@@ -27,7 +27,19 @@ export function FarmingCard({ onBalanceUpdate }: FarmingCardProps) {
   // Fetch initial farming status
   const fetchFarmingStatus = useCallback(async () => {
     try {
-      const response = await fetch("/api/farming");
+      // Get user ID from Telegram WebApp
+      const telegramId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
+      
+      if (!telegramId) {
+        setIsLoading(false);
+        return;
+      }
+
+      const response = await fetch("/api/farming", {
+        headers: {
+          "x-telegram-id": telegramId.toString(),
+        },
+      });
       const data = await response.json();
       
       if (data.success) {
@@ -79,9 +91,19 @@ export function FarmingCard({ onBalanceUpdate }: FarmingCardProps) {
   const handleStart = async () => {
     setIsActioning(true);
     try {
+      // Get user ID from Telegram WebApp
+      const telegramId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
+      
+      if (!telegramId) {
+        return;
+      }
+
       const response = await fetch("/api/farming", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "x-telegram-id": telegramId.toString(),
+        },
         body: JSON.stringify({ action: "start" }),
       });
       
@@ -102,9 +124,19 @@ export function FarmingCard({ onBalanceUpdate }: FarmingCardProps) {
   const handleClaim = async () => {
     setIsActioning(true);
     try {
+      // Get user ID from Telegram WebApp
+      const telegramId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
+      
+      if (!telegramId) {
+        return;
+      }
+
       const response = await fetch("/api/farming", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "x-telegram-id": telegramId.toString(),
+        },
         body: JSON.stringify({ action: "claim" }),
       });
       

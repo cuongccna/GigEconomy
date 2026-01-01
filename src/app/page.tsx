@@ -75,7 +75,18 @@ export default function Home() {
   // Fetch check-in status
   const fetchCheckInStatus = useCallback(async () => {
     try {
-      const response = await fetch("/api/checkin");
+      // Get user ID from Telegram WebApp
+      const telegramId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
+      
+      if (!telegramId) {
+        return;
+      }
+
+      const response = await fetch("/api/checkin", {
+        headers: {
+          "x-telegram-id": telegramId.toString(),
+        },
+      });
       const data = await response.json();
       if (data.success) {
         setStreak(data.streak);
@@ -141,7 +152,19 @@ export default function Home() {
   // Handle daily check-in claim
   const handleCheckInClaim = async () => {
     try {
-      const response = await fetch("/api/checkin", { method: "POST" });
+      // Get user ID from Telegram WebApp
+      const telegramId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
+      
+      if (!telegramId) {
+        return;
+      }
+
+      const response = await fetch("/api/checkin", { 
+        method: "POST",
+        headers: {
+          "x-telegram-id": telegramId.toString(),
+        },
+      });
       const data = await response.json();
       
       if (data.success) {

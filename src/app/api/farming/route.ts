@@ -12,22 +12,35 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { action } = body; // "start" or "claim"
-    const userId = TEST_USER_ID;
+    
+    // Get user ID from header
+    const telegramIdStr = request.headers.get("x-telegram-id");
+    
+    if (!telegramIdStr) {
+      return NextResponse.json(
+        { success: false, message: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    const telegramId = BigInt(telegramIdStr);
+
+    // Get user ID from DB
+    const user = await prisma.user.findUnique({
+      where: { telegramId },
+      select: { id: true, farmingStartedAt: true, farmingRate: true, balance: true },
+    });
+
+    if (!user) {
+      return NextResponse.json(
+        { success: false, message: "User not found" },
+        { status: 404 }
+      );
+    }
+
+    const userId = user.id;
 
     if (action === "start") {
-      // Check if already farming
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { farmingStartedAt: true },
-      });
-
-      if (!user) {
-        return NextResponse.json(
-          { success: false, message: "User not found" },
-          { status: 404 }
-        );
-      }
-
       if (user.farmingStartedAt) {
         return NextResponse.json(
           { success: false, message: "Already farming" },
@@ -120,12 +133,22 @@ export async function POST(request: NextRequest) {
 }
 
 // GET endpoint to check farming status
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const userId = TEST_USER_ID;
+    // Get user ID from header
+    const telegramIdStr = request.headers.get("x-telegram-id");
+    
+    if (!telegramIdStr) {
+      return NextResponse.json(
+        { success: false, message: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    const telegramId = BigInt(telegramIdStr);
 
     const user = await prisma.user.findUnique({
-      where: { id: userId },
+      where: { telegramId },
       select: {
         farmingStartedAt: true,
         farmingRate: true,
@@ -134,10 +157,18 @@ export async function GET() {
     });
 
     if (!user) {
-      return NextResponse.json(
-        { success: false, message: "User not found" },
-        { status: 404 }
-      );
+      // Return default state if user not found (not created yet)
+      return NextResponse.json({
+        success: true,
+        isFarming: false,
+        farmingStartedAt: null,
+        farmingRate: 0.5,
+        elapsedMinutes: 0,
+        currentEarnings: 0,
+        maxEarnings: 240,
+        isFull: false,
+        balance: 0,
+      });
     }
 
     const isFarming = !!user.farmingStartedAt;
