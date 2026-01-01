@@ -14,6 +14,7 @@ import {
   Loader2,
   AlertTriangle,
 } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
 
 interface Task {
   id: string;
@@ -72,6 +73,7 @@ function CreateTaskModal({
   onClose: () => void;
   onCreated: () => void;
 }) {
+  const { user } = useAuth();
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -89,9 +91,13 @@ function CreateTaskModal({
     setIsSubmitting(true);
 
     try {
+      if (!user?.id) throw new Error("Unauthorized");
       const response = await fetch("/api/admin/tasks", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "x-telegram-id": user.id.toString()
+        },
         body: JSON.stringify(formData),
       });
 
@@ -401,6 +407,7 @@ function TaskRow({
 
 // Main Page Component
 export default function AdminTasksPage() {
+  const { user } = useAuth();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -413,8 +420,13 @@ export default function AdminTasksPage() {
 
   // Fetch tasks
   const fetchTasks = async () => {
+    if (!user?.id) return;
     try {
-      const response = await fetch("/api/admin/tasks");
+      const response = await fetch("/api/admin/tasks", {
+        headers: {
+          "x-telegram-id": user.id.toString()
+        }
+      });
       const data = await response.json();
       if (data.success) {
         setTasks(data.tasks);
@@ -427,16 +439,22 @@ export default function AdminTasksPage() {
   };
 
   useEffect(() => {
-    fetchTasks();
-  }, []);
+    if (user?.id) {
+      fetchTasks();
+    }
+  }, [user]);
 
   // Toggle task active status
   const handleToggle = async (taskId: string, isActive: boolean) => {
+    if (!user?.id) return;
     setTogglingTaskId(taskId);
     try {
       const response = await fetch("/api/admin/tasks", {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "x-telegram-id": user.id.toString()
+        },
         body: JSON.stringify({ taskId, isActive }),
       });
 
@@ -455,13 +473,16 @@ export default function AdminTasksPage() {
 
   // Delete task
   const handleDelete = async () => {
-    if (!deleteModal.task) return;
+    if (!deleteModal.task || !user?.id) return;
     setIsDeleting(true);
 
     try {
       const response = await fetch("/api/admin/tasks", {
         method: "DELETE",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "x-telegram-id": user.id.toString()
+        },
         body: JSON.stringify({ taskId: deleteModal.task.id }),
       });
 

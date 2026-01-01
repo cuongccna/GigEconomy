@@ -16,6 +16,7 @@ import {
   Sparkles,
   Check,
 } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
 
 interface Item {
   id: string;
@@ -78,6 +79,7 @@ function EditItemModal({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const { user } = useAuth();
   const [formData, setFormData] = useState({
     name: "",
     description: "",
@@ -113,9 +115,13 @@ function EditItemModal({
     setIsSubmitting(true);
 
     try {
+      if (!user?.id) throw new Error("Unauthorized");
       const response = await fetch("/api/admin/shop", {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "x-telegram-id": user.id.toString()
+        },
         body: JSON.stringify({
           itemId: item?.id,
           ...formData,
@@ -342,6 +348,7 @@ function CreateItemModal({
   onClose: () => void;
   onCreated: () => void;
 }) {
+  const { user } = useAuth();
   const [formData, setFormData] = useState({
     name: "",
     description: "",
@@ -359,9 +366,13 @@ function CreateItemModal({
     setIsSubmitting(true);
 
     try {
+      if (!user?.id) throw new Error("Unauthorized");
       const response = await fetch("/api/admin/shop", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "x-telegram-id": user.id.toString()
+        },
         body: JSON.stringify(formData),
       });
 
@@ -609,6 +620,7 @@ function ItemCard({
 
 // Main Page Component
 export default function AdminShopPage() {
+  const { user } = useAuth();
   const [items, setItems] = useState<Item[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -619,8 +631,13 @@ export default function AdminShopPage() {
 
   // Fetch items
   const fetchItems = async () => {
+    if (!user?.id) return;
     try {
-      const response = await fetch("/api/admin/shop");
+      const response = await fetch("/api/admin/shop", {
+        headers: {
+          "x-telegram-id": user.id.toString()
+        }
+      });
       const data = await response.json();
       if (data.success) {
         setItems(data.items);
@@ -633,8 +650,10 @@ export default function AdminShopPage() {
   };
 
   useEffect(() => {
-    fetchItems();
-  }, []);
+    if (user?.id) {
+      fetchItems();
+    }
+  }, [user]);
 
   // Stats
   const activeItems = items.filter((i) => i.isActive).length;

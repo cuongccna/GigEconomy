@@ -20,6 +20,7 @@ import {
   Coins,
   X,
 } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
 
 interface UserData {
   id: string;
@@ -374,6 +375,7 @@ function UserCard({
 
 // Main Page Component
 export default function AdminUsersPage() {
+  const { user: currentUser } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [users, setUsers] = useState<UserData[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -391,13 +393,7 @@ export default function AdminUsersPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [toast, setToast] = useState<{ show: boolean; message: string; type: "success" | "error" } | null>(null);
 
-  // Get current admin ID from localStorage
-  const getAdminId = () => {
-    if (typeof window !== "undefined") {
-      return localStorage.getItem("userId") || "";
-    }
-    return "";
-  };
+  // Removed getAdminId as we use useAuth now
 
   // Search users
   const searchUsers = useCallback(async (query: string) => {
@@ -407,11 +403,18 @@ export default function AdminUsersPage() {
       return;
     }
 
+    // Wait for user to be loaded
+    if (!currentUser?.id) return;
+
     setIsSearching(true);
     setHasSearched(true);
 
     try {
-      const response = await fetch(`/api/admin/users?q=${encodeURIComponent(query)}`);
+      const response = await fetch(`/api/admin/users?q=${encodeURIComponent(query)}`, {
+        headers: {
+          "x-telegram-id": currentUser.id.toString(),
+        },
+      });
       const data = await response.json();
       if (data.success) {
         setUsers(data.users);
@@ -421,16 +424,18 @@ export default function AdminUsersPage() {
     } finally {
       setIsSearching(false);
     }
-  }, []);
+  }, [currentUser]);
 
   // Debounced search
   useEffect(() => {
     const timer = setTimeout(() => {
-      searchUsers(searchQuery);
+      if (currentUser?.id) {
+        searchUsers(searchQuery);
+      }
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [searchQuery, searchUsers]);
+  }, [searchQuery, searchUsers, currentUser]);
 
   // Show toast
   const showToast = (message: string, type: "success" | "error") => {
@@ -440,18 +445,21 @@ export default function AdminUsersPage() {
 
   // Handle gift action
   const handleGift = async (amount: number) => {
-    if (!giftModal.user) return;
+    if (!giftModal.user || !currentUser?.id) return;
     setIsSubmitting(true);
 
     try {
       const response = await fetch("/api/admin/users/action", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "x-telegram-id": currentUser.id.toString(),
+        },
         body: JSON.stringify({
           action: "gift",
           userId: giftModal.user.id,
           amount,
-          adminId: getAdminId(),
+          adminId: currentUser.id.toString(),
         }),
       });
 
@@ -480,7 +488,7 @@ export default function AdminUsersPage() {
 
   // Handle ban/unban action
   const handleBanToggle = async () => {
-    if (!banModal.user) return;
+    if (!banModal.user || !currentUser?.id) return;
     setIsSubmitting(true);
 
     const action = banModal.user.isBanned ? "unban" : "ban";
@@ -488,11 +496,14 @@ export default function AdminUsersPage() {
     try {
       const response = await fetch("/api/admin/users/action", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "x-telegram-id": currentUser.id.toString(),
+        },
         body: JSON.stringify({
           action,
           userId: banModal.user.id,
-          adminId: getAdminId(),
+          adminId: currentUser.id.toString(),
         }),
       });
 
