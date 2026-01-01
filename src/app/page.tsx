@@ -89,11 +89,29 @@ export default function Home() {
   // Fetch tasks from API
   const fetchTasks = useCallback(async () => {
     try {
-      const response = await fetch("/api/tasks");
+      // Get user ID from Telegram WebApp
+      const telegramId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
+      
+      if (!telegramId) {
+        console.warn("No Telegram ID found, skipping fetch");
+        setIsLoading(false);
+        return;
+      }
+
+      const response = await fetch("/api/tasks", {
+        headers: {
+          "x-telegram-id": telegramId.toString(),
+        },
+      });
+      
+      if (!response.ok) {
+        throw new Error("Failed to fetch tasks");
+      }
+
       const data: TasksResponse = await response.json();
 
       // Map API tasks to UI tasks with resolved icons
-      const mappedTasks: Task[] = data.tasks.map((apiTask: ApiTask) => ({
+      const mappedTasks: Task[] = (data.tasks || []).map((apiTask: ApiTask) => ({
         id: apiTask.id,
         title: apiTask.title,
         reward: apiTask.reward,
@@ -104,9 +122,12 @@ export default function Home() {
       }));
 
       setTasks(mappedTasks);
-      setUserBalance(data.userBalance);
+      setUserBalance(data.userBalance || 0);
     } catch (error) {
       console.error("Failed to fetch tasks:", error);
+      // Set empty state on error
+      setTasks([]);
+      setUserBalance(0);
     } finally {
       setIsLoading(false);
     }

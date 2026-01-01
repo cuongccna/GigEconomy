@@ -1,8 +1,5 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-
-// Test user ID (from seed)
-const TEST_USER_ID = "61c958da-e508-4184-933f-136f9b055f2b";
 
 /**
  * GET /api/shop
@@ -11,8 +8,20 @@ const TEST_USER_ID = "61c958da-e508-4184-933f-136f9b055f2b";
  * 
  * Returns: { items: Item[], userBalance: number, userItems: UserItem[] }
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    // Get user ID from header
+    const telegramIdStr = request.headers.get("x-telegram-id");
+    
+    if (!telegramIdStr) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    const telegramId = BigInt(telegramIdStr);
+
     // Get all active items
     const items = await prisma.item.findMany({
       where: { isActive: true },
@@ -21,8 +30,9 @@ export async function GET() {
 
     // Get user with balance and owned items
     const user = await prisma.user.findUnique({
-      where: { id: TEST_USER_ID },
+      where: { telegramId },
       select: {
+        id: true,
         balance: true,
         farmingRate: true,
         userItems: {
@@ -40,10 +50,24 @@ export async function GET() {
       );
     }
 
+    // If no items in shop, return empty list
+    if (items.length === 0) {
+      return NextResponse.json({
+        items: [],
+        userBalance: user.balance,
+        userItems: [],
+      });
+    }
+
     // Map items with ownership info
     const itemsWithOwnership = items.map((item) => {
       const userItem = user.userItems.find((ui) => ui.itemId === item.id);
-      const effect = JSON.parse(item.effect);
+      let effect = {};
+      try {
+        effect = JSON.parse(item.effect);
+      } catch {
+        console.error(`Failed to parse effect for item ${item.id}`);
+      }
       
       return {
         id: item.id,

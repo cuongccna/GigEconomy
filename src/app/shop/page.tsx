@@ -88,16 +88,41 @@ export default function ShopPage() {
   // Fetch shop data
   const fetchShop = useCallback(async () => {
     try {
-      const response = await fetch("/api/shop");
+      // Get user ID from Telegram WebApp
+      const telegramId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
+      
+      if (!telegramId) {
+        console.warn("No Telegram ID found, skipping fetch");
+        setIsLoading(false);
+        return;
+      }
+
+      const response = await fetch("/api/shop", {
+        headers: {
+          "x-telegram-id": telegramId.toString(),
+        },
+      });
+      
+      if (!response.ok) {
+        throw new Error("Failed to fetch shop");
+      }
+
       const data = await response.json();
       
       if (data.items) {
         setItems(data.items);
-        setBalance(data.userBalance);
+        setBalance(data.userBalance || 0);
         setOwnedItems(data.ownedItems || []);
+      } else {
+        // Handle empty shop
+        setItems([]);
+        setBalance(data.userBalance || 0);
+        setOwnedItems([]);
       }
     } catch (error) {
       console.error("Failed to fetch shop:", error);
+      setItems([]);
+      setBalance(0);
     } finally {
       setIsLoading(false);
     }

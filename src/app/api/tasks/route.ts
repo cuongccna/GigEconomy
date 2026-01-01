@@ -1,15 +1,24 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-// Hardcoded test user ID for MVP (from seed)
-const TEST_USER_ID = "61c958da-e508-4184-933f-136f9b055f2b";
-
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    // Get user ID from header
+    const telegramIdStr = request.headers.get("x-telegram-id");
+    
+    if (!telegramIdStr) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    const telegramId = BigInt(telegramIdStr);
+
     // Fetch user with balance
     const user = await prisma.user.findUnique({
-      where: { id: TEST_USER_ID },
-      select: { balance: true },
+      where: { telegramId },
+      select: { id: true, balance: true },
     });
 
     if (!user) {
@@ -25,9 +34,17 @@ export async function GET() {
       orderBy: { reward: "desc" },
     });
 
+    // If no tasks, return empty list but success
+    if (tasks.length === 0) {
+      return NextResponse.json({
+        tasks: [],
+        userBalance: user.balance,
+      });
+    }
+
     // Get completed task IDs for this user
     const completedTasks = await prisma.userTask.findMany({
-      where: { userId: TEST_USER_ID },
+      where: { userId: user.id },
       select: { taskId: true },
     });
 
