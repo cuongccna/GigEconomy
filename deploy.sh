@@ -40,8 +40,10 @@ echo "  6) Setup Nginx + SSL"
 echo "  7) Configure Telegram Bot Token"
 echo "  8) Setup PostgreSQL database"
 echo "  9) Check system status"
+echo "  10) Seed database (tasks, shop items, etc.)"
+echo "  11) Reset database (WARNING: deletes all data)"
 echo ""
-read -p "Enter choice [1-9]: " ACTION
+read -p "Enter choice [1-11]: " ACTION
 
 case $ACTION in
     1)
@@ -145,13 +147,40 @@ EOF
         npx prisma migrate deploy || npx prisma db push
         
         # Seed database
-        echo "Seeding database..."
+        echo -e "${CYAN}Seeding database...${NC}"
+        
+        # Seed tasks
         if [ -f "prisma/seed.ts" ]; then
-            npx ts-node --compiler-options '{"module":"CommonJS"}' prisma/seed.ts || echo "Task seed skipped"
+            echo "  → Seeding tasks..."
+            npx ts-node --compiler-options '{"module":"CommonJS"}' prisma/seed.ts && \
+                echo -e "  ${GREEN}✓ Tasks seeded${NC}" || \
+                echo -e "  ${YELLOW}⚠ Task seed skipped${NC}"
         fi
+        
+        # Seed shop items
         if [ -f "prisma/seed_shop.ts" ]; then
-            npx ts-node --compiler-options '{"module":"CommonJS"}' prisma/seed_shop.ts || echo "Shop seed skipped"
+            echo "  → Seeding shop items..."
+            npx ts-node --compiler-options '{"module":"CommonJS"}' prisma/seed_shop.ts && \
+                echo -e "  ${GREEN}✓ Shop items seeded${NC}" || \
+                echo -e "  ${YELLOW}⚠ Shop seed skipped${NC}"
         fi
+        
+        # Seed levels (if exists)
+        if [ -f "prisma/seed_levels.ts" ]; then
+            echo "  → Seeding levels..."
+            npx ts-node --compiler-options '{"module":"CommonJS"}' prisma/seed_levels.ts && \
+                echo -e "  ${GREEN}✓ Levels seeded${NC}" || \
+                echo -e "  ${YELLOW}⚠ Levels seed skipped${NC}"
+        fi
+        
+        # Seed achievements (if exists)
+        if [ -f "prisma/seed_achievements.ts" ]; then
+            echo "  → Seeding achievements..."
+            npx ts-node --compiler-options '{"module":"CommonJS"}' prisma/seed_achievements.ts && \
+                echo -e "  ${GREEN}✓ Achievements seeded${NC}" || \
+                echo -e "  ${YELLOW}⚠ Achievements seed skipped${NC}"
+        fi
+        
         echo -e "${GREEN}✓ Database setup complete${NC}"
         
         echo -e "${CYAN}[7/8] Building application...${NC}"
@@ -373,6 +402,140 @@ EOF
         echo ""
         echo -e "${YELLOW}=== Memory ===${NC}"
         free -h
+        ;;
+    
+    10)
+        echo -e "${CYAN}╔═══════════════════════════════════════════════════╗${NC}"
+        echo -e "${CYAN}║           Database Seeding Options                ║${NC}"
+        echo -e "${CYAN}╚═══════════════════════════════════════════════════╝${NC}"
+        echo ""
+        echo -e "${YELLOW}Select seed option:${NC}"
+        echo "  1) Seed ALL (tasks, shop, levels, achievements)"
+        echo "  2) Seed Tasks only"
+        echo "  3) Seed Shop items only"
+        echo "  4) Seed Levels only"
+        echo "  5) Seed Achievements only"
+        echo "  6) Run npm db:seed (package.json script)"
+        echo ""
+        read -p "Enter choice [1-6]: " SEED_CHOICE
+        
+        cd $DEPLOY_PATH
+        
+        case $SEED_CHOICE in
+            1)
+                echo -e "${CYAN}Seeding all data...${NC}"
+                
+                if [ -f "prisma/seed.ts" ]; then
+                    echo "  → Seeding tasks..."
+                    npx ts-node --compiler-options '{"module":"CommonJS"}' prisma/seed.ts && \
+                        echo -e "  ${GREEN}✓ Tasks seeded${NC}" || \
+                        echo -e "  ${RED}✗ Tasks failed${NC}"
+                fi
+                
+                if [ -f "prisma/seed_shop.ts" ]; then
+                    echo "  → Seeding shop items..."
+                    npx ts-node --compiler-options '{"module":"CommonJS"}' prisma/seed_shop.ts && \
+                        echo -e "  ${GREEN}✓ Shop items seeded${NC}" || \
+                        echo -e "  ${RED}✗ Shop items failed${NC}"
+                fi
+                
+                if [ -f "prisma/seed_levels.ts" ]; then
+                    echo "  → Seeding levels..."
+                    npx ts-node --compiler-options '{"module":"CommonJS"}' prisma/seed_levels.ts && \
+                        echo -e "  ${GREEN}✓ Levels seeded${NC}" || \
+                        echo -e "  ${RED}✗ Levels failed${NC}"
+                fi
+                
+                if [ -f "prisma/seed_achievements.ts" ]; then
+                    echo "  → Seeding achievements..."
+                    npx ts-node --compiler-options '{"module":"CommonJS"}' prisma/seed_achievements.ts && \
+                        echo -e "  ${GREEN}✓ Achievements seeded${NC}" || \
+                        echo -e "  ${RED}✗ Achievements failed${NC}"
+                fi
+                
+                echo -e "${GREEN}✓ All seeding complete!${NC}"
+                ;;
+            2)
+                echo -e "${CYAN}Seeding tasks...${NC}"
+                if [ -f "prisma/seed.ts" ]; then
+                    npx ts-node --compiler-options '{"module":"CommonJS"}' prisma/seed.ts
+                    echo -e "${GREEN}✓ Tasks seeded${NC}"
+                else
+                    echo -e "${RED}✗ prisma/seed.ts not found${NC}"
+                fi
+                ;;
+            3)
+                echo -e "${CYAN}Seeding shop items...${NC}"
+                if [ -f "prisma/seed_shop.ts" ]; then
+                    npx ts-node --compiler-options '{"module":"CommonJS"}' prisma/seed_shop.ts
+                    echo -e "${GREEN}✓ Shop items seeded${NC}"
+                else
+                    echo -e "${RED}✗ prisma/seed_shop.ts not found${NC}"
+                fi
+                ;;
+            4)
+                echo -e "${CYAN}Seeding levels...${NC}"
+                if [ -f "prisma/seed_levels.ts" ]; then
+                    npx ts-node --compiler-options '{"module":"CommonJS"}' prisma/seed_levels.ts
+                    echo -e "${GREEN}✓ Levels seeded${NC}"
+                else
+                    echo -e "${RED}✗ prisma/seed_levels.ts not found${NC}"
+                fi
+                ;;
+            5)
+                echo -e "${CYAN}Seeding achievements...${NC}"
+                if [ -f "prisma/seed_achievements.ts" ]; then
+                    npx ts-node --compiler-options '{"module":"CommonJS"}' prisma/seed_achievements.ts
+                    echo -e "${GREEN}✓ Achievements seeded${NC}"
+                else
+                    echo -e "${RED}✗ prisma/seed_achievements.ts not found${NC}"
+                fi
+                ;;
+            6)
+                echo -e "${CYAN}Running npm db:seed...${NC}"
+                npm run db:seed
+                echo -e "${GREEN}✓ Seed complete${NC}"
+                ;;
+            *)
+                echo -e "${RED}Invalid choice${NC}"
+                ;;
+        esac
+        ;;
+    
+    11)
+        echo -e "${RED}╔═══════════════════════════════════════════════════╗${NC}"
+        echo -e "${RED}║     ⚠️  WARNING: DATABASE RESET                   ║${NC}"
+        echo -e "${RED}║     This will DELETE ALL DATA!                    ║${NC}"
+        echo -e "${RED}╚═══════════════════════════════════════════════════╝${NC}"
+        echo ""
+        read -p "Are you SURE you want to reset? (type 'yes' to confirm): " CONFIRM_RESET
+        
+        if [ "$CONFIRM_RESET" = "yes" ]; then
+            cd $DEPLOY_PATH
+            
+            echo -e "${YELLOW}Stopping apps...${NC}"
+            pm2 stop $APP_NAME $BOT_NAME 2>/dev/null || true
+            
+            echo -e "${YELLOW}Resetting database...${NC}"
+            npx prisma migrate reset --force
+            
+            echo -e "${YELLOW}Re-seeding data...${NC}"
+            
+            if [ -f "prisma/seed.ts" ]; then
+                npx ts-node --compiler-options '{"module":"CommonJS"}' prisma/seed.ts || true
+            fi
+            
+            if [ -f "prisma/seed_shop.ts" ]; then
+                npx ts-node --compiler-options '{"module":"CommonJS"}' prisma/seed_shop.ts || true
+            fi
+            
+            echo -e "${YELLOW}Restarting apps...${NC}"
+            pm2 restart $APP_NAME $BOT_NAME
+            
+            echo -e "${GREEN}✓ Database reset and re-seeded${NC}"
+        else
+            echo -e "${YELLOW}Reset cancelled${NC}"
+        fi
         ;;
         
     *)
