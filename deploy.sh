@@ -20,7 +20,7 @@ set -e  # Exit on error
 DEPLOY_PATH="/var/www/GigEconomy"
 APP_NAME="gigx-app"
 BOT_NAME="gigx-bot"
-APP_PORT="3001"
+APP_PORT="3006"
 
 # Colors
 RED='\033[0;31m'
