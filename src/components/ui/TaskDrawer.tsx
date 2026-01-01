@@ -6,6 +6,7 @@ import { X, Scan, CheckCircle2, ExternalLink, Zap, Loader2 } from "lucide-react"
 import confetti from "canvas-confetti";
 import { cn } from "@/lib/utils";
 import { CyberButton } from "./CyberButton";
+import { useAuth } from "@/hooks/useAuth";
 
 type TaskStatus = "idle" | "checking" | "completed" | "claiming";
 
@@ -27,6 +28,7 @@ interface TaskDrawerProps {
 }
 
 export function TaskDrawer({ task, isOpen, onClose, onClaim }: TaskDrawerProps) {
+  const { user } = useAuth();
   const [status, setStatus] = useState<TaskStatus>("idle");
   const [progress, setProgress] = useState(0);
   const [scanLine, setScanLine] = useState(0);
@@ -82,7 +84,7 @@ export function TaskDrawer({ task, isOpen, onClose, onClaim }: TaskDrawerProps) 
   };
 
   const handleClaimReward = async () => {
-    if (!task) return;
+    if (!task || !user?.id) return;
     
     setStatus("claiming");
     setError(null);
@@ -93,6 +95,7 @@ export function TaskDrawer({ task, isOpen, onClose, onClaim }: TaskDrawerProps) 
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "x-telegram-id": user.id.toString(),
         },
         body: JSON.stringify({ taskId: task.id }),
       });
