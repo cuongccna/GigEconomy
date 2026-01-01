@@ -94,11 +94,21 @@ export default function ProfilePage() {
   // Fetch user stats
   useEffect(() => {
     const fetchStats = async () => {
+      if (!user?.id) return;
+
       try {
         // Fetch balance and tasks info
         const [tasksRes, friendsRes] = await Promise.all([
-          fetch("/api/tasks"),
-          fetch("/api/friends"),
+          fetch("/api/tasks", {
+            headers: {
+              "x-telegram-id": user.id.toString(),
+            },
+          }),
+          fetch("/api/friends", {
+            headers: {
+              "x-telegram-id": user.id.toString(),
+            },
+          }),
         ]);
         
         const tasksData = await tasksRes.json();
@@ -119,7 +129,7 @@ export default function ProfilePage() {
       }
     };
     fetchStats();
-  }, []);
+  }, [user]);
 
   const { level, xp, xpNeeded, progress } = calculateLevel(stats.totalEarned);
   const username = user?.username || user?.first_name || "Agent";

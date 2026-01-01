@@ -14,6 +14,7 @@ import {
 /* eslint-disable @next/next/no-img-element */
 import { BottomNav } from "@/components/ui";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/hooks/useAuth";
 
 // Types
 interface LeaderboardUser {
@@ -251,11 +252,18 @@ export default function LeaderboardPage() {
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
   const [totalUsers, setTotalUsers] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  const { user } = useAuth();
 
   // Fetch leaderboard data
   const fetchLeaderboard = useCallback(async () => {
+    if (!user?.id) return;
+
     try {
-      const response = await fetch("/api/leaderboard");
+      const response = await fetch("/api/leaderboard", {
+        headers: {
+          "x-telegram-id": user.id.toString(),
+        },
+      });
       const data = await response.json();
 
       if (data.topMiners) {
@@ -270,7 +278,7 @@ export default function LeaderboardPage() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     fetchLeaderboard();

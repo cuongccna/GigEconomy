@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Copy, Check, Users, Gift, Sparkles } from "lucide-react";
 import { BottomNav } from "@/components/ui";
+import { useAuth } from "@/hooks/useAuth";
 import "@/types/telegram";
 
 interface Friend {
@@ -25,14 +26,21 @@ interface FriendsData {
 const BOT_USERNAME = "GigXBot";
 
 export default function FriendsPage() {
+  const { user } = useAuth();
   const [copied, setCopied] = useState(false);
   const [data, setData] = useState<FriendsData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const fetchFriends = async () => {
+      if (!user?.id) return;
+
       try {
-        const response = await fetch("/api/friends");
+        const response = await fetch("/api/friends", {
+          headers: {
+            "x-telegram-id": user.id.toString(),
+          },
+        });
         const result = await response.json();
         if (result.success) {
           setData(result);
@@ -44,7 +52,7 @@ export default function FriendsPage() {
       }
     };
     fetchFriends();
-  }, []);
+  }, [user]);
 
   const referralLink = data?.telegramId 
     ? `https://t.me/${BOT_USERNAME}?start=ref_${data.telegramId}`

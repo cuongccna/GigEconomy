@@ -4,6 +4,7 @@ import Script from "next/script";
 import "./globals.css";
 import { TonProvider } from "@/components/TonProvider";
 import { AuthProvider } from "@/hooks/useAuth";
+import { AuthGuard } from "@/components/AuthGuard";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -45,7 +46,9 @@ export default function RootLayout({
           strategy="beforeInteractive"
         />
         <AuthProvider>
-          <TonProvider>{children}</TonProvider>
+          <TonProvider>
+            <AuthGuard>{children}</AuthGuard>
+          </TonProvider>
         </AuthProvider>
       </body>
     </html>

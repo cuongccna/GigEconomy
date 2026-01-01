@@ -6,6 +6,7 @@ import { Zap, RotateCcw, Trophy, Skull, X, Sparkles, History, Play, CheckCircle 
 import confetti from "canvas-confetti";
 import { BottomNav } from "@/components/ui";
 import { useAdsgram } from "@/hooks/useAdsgram";
+import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
 
 // Wheel segments configuration - isPremium adds special effects
@@ -83,6 +84,7 @@ export default function SpinPage() {
   const [spinResult, setSpinResult] = useState<SpinResult | null>(null);
   const [recentSpins, setRecentSpins] = useState<RecentSpin[]>([]);
   const [showHistory, setShowHistory] = useState(false);
+  const { user } = useAuth();
   
   // Ad watching state
   const [isWatchingAd, setIsWatchingAd] = useState(false);
@@ -103,8 +105,14 @@ export default function SpinPage() {
 
   // Fetch initial data
   const fetchSpinInfo = useCallback(async () => {
+    if (!user?.id) return;
+
     try {
-      const response = await fetch("/api/spin");
+      const response = await fetch("/api/spin", {
+        headers: {
+          "x-telegram-id": user.id.toString(),
+        },
+      });
       const data = await response.json();
       if (data.success) {
         setBalance(data.balance);
@@ -113,7 +121,7 @@ export default function SpinPage() {
     } catch (error) {
       console.error("Failed to fetch spin info:", error);
     }
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     fetchSpinInfo();
@@ -128,13 +136,18 @@ export default function SpinPage() {
 
   // Handle spin
   const handleSpin = async () => {
-    if (isSpinning || balance < SPIN_COST) return;
+    if (isSpinning || balance < SPIN_COST || !user?.id) return;
 
     setIsSpinning(true);
     triggerHaptic("medium");
 
     try {
-      const response = await fetch("/api/spin", { method: "POST" });
+      const response = await fetch("/api/spin", { 
+        method: "POST",
+        headers: {
+          "x-telegram-id": user.id.toString(),
+        },
+      });
       const data = await response.json();
 
       if (data.success) {
@@ -182,7 +195,7 @@ export default function SpinPage() {
 
   // Handle watch ad for free spin
   const handleWatchAd = async () => {
-    if (isWatchingAd || isSpinning) return;
+    if (isWatchingAd || isSpinning || !user?.id) return;
     
     setIsWatchingAd(true);
     setAdToast(null);
@@ -192,7 +205,12 @@ export default function SpinPage() {
       
       if (result.done) {
         // Call API to grant free spin (500 $GIG)
-        const response = await fetch("/api/spin/free", { method: "POST" });
+        const response = await fetch("/api/spin/free", { 
+          method: "POST",
+          headers: {
+            "x-telegram-id": user.id.toString(),
+          },
+        });
         const data = await response.json();
         
         if (data.success) {
