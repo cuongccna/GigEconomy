@@ -17,7 +17,7 @@
 set -e  # Exit on error
 
 # Configuration
-DEPLOY_PATH="/var/www/gigx"
+DEPLOY_PATH="/var/www/GigEconomy"
 APP_NAME="gigx-app"
 APP_PORT="3001"
 
