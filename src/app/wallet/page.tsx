@@ -12,6 +12,7 @@ export default function WalletPage() {
   const wallet = useTonWallet();
   const [copied, setCopied] = useState(false);
   const [userBalance, setUserBalance] = useState<number>(0);
+  const MIN_WITHDRAW = 100000;
 
   // Fetch user balance
   useEffect(() => {
@@ -229,20 +230,33 @@ export default function WalletPage() {
         className="px-4"
       >
         <button
-          disabled
-          className="w-full py-4 px-6 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center gap-3 cursor-not-allowed opacity-50"
+          disabled={userBalance < MIN_WITHDRAW}
+          className={`w-full py-4 px-6 rounded-2xl flex items-center justify-center gap-3 transition-all duration-300 ${
+            userBalance >= MIN_WITHDRAW
+              ? "bg-neon-purple/20 border border-neon-purple text-white hover:bg-neon-purple/30 shadow-[0_0_20px_rgba(112,0,255,0.3)] cursor-pointer"
+              : "bg-white/5 border border-white/10 cursor-not-allowed opacity-50 text-white/40"
+          }`}
         >
-          <ArrowDownToLine size={20} className="text-white/40" />
-          <span className="text-white/40 font-medium">Withdraw</span>
+          <ArrowDownToLine size={20} className={userBalance >= MIN_WITHDRAW ? "text-neon-purple" : "text-white/40"} />
+          <span className={userBalance >= MIN_WITHDRAW ? "text-white font-medium" : "text-white/40 font-medium"}>Withdraw</span>
         </button>
         <p className="text-center text-white/30 text-xs mt-3">
-          Min. Withdraw: <span className="text-neon-purple">50,000 $GIG</span>
+          Min. Withdraw: <span className="text-neon-purple">{MIN_WITHDRAW.toLocaleString()} $GIG</span>
         </p>
-        <div className="mt-4 bg-neon-purple/10 border border-neon-purple/20 rounded-xl p-3">
-          <p className="text-center text-white/50 text-xs">
-            You need <span className="text-neon-green font-bold">{Math.max(0, 50000 - userBalance).toLocaleString()}</span> more $GIG to withdraw
-          </p>
-        </div>
+        
+        {userBalance < MIN_WITHDRAW ? (
+          <div className="mt-4 bg-neon-purple/10 border border-neon-purple/20 rounded-xl p-3">
+            <p className="text-center text-white/50 text-xs">
+              You need <span className="text-neon-green font-bold">{Math.max(0, MIN_WITHDRAW - userBalance).toLocaleString()}</span> more $GIG to withdraw
+            </p>
+          </div>
+        ) : (
+          <div className="mt-4 bg-neon-green/10 border border-neon-green/20 rounded-xl p-3">
+            <p className="text-center text-neon-green text-xs font-bold">
+              Ready to withdraw!
+            </p>
+          </div>
+        )}
       </motion.div>
 
       {/* Bottom Navigation */}
