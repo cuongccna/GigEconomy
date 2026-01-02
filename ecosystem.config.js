@@ -34,6 +34,25 @@ module.exports = {
       error_file: '/var/www/GigEconomy/logs/bot-error.log',
       out_file: '/var/www/GigEconomy/logs/bot-output.log',
       time: true
+    },
+    // Airdrop Fetcher Cron Job (runs every 6 hours)
+    {
+      name: 'gigx-airdrop-cron',
+      script: 'node',
+      args: 'scripts/cron-fetch-airdrops.js',
+      cwd: '/var/www/GigEconomy',
+      instances: 1,
+      autorestart: false,
+      watch: false,
+      cron_restart: '0 */6 * * *', // Every 6 hours: 00:00, 06:00, 12:00, 18:00
+      env: {
+        NODE_ENV: 'production',
+        APP_URL: 'http://localhost:3006',
+        CRON_SECRET: process.env.CRON_SECRET || ''
+      },
+      error_file: '/var/www/GigEconomy/logs/cron-error.log',
+      out_file: '/var/www/GigEconomy/logs/cron-output.log',
+      time: true
     }
   ]
 };
