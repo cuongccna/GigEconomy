@@ -3,31 +3,52 @@ import { prisma } from "@/lib/prisma";
 import Parser from "rss-parser";
 import { SocksProxyAgent } from "socks-proxy-agent";
 
-// RSS Feed URLs to crawl - using specific airdrop categories for better quality
-const RSS_FEEDS = [
-  "https://airdrops.io/category/latest-airdrops/feed/",
-  "https://airdrops.io/category/hot-airdrops/feed/",
-  // Fallback to main feed if categories don't work
-  // "https://airdrops.io/feed/",
+// ============ MULTI-SOURCE FEED CONFIGURATION ============
+interface FeedConfig {
+  url: string;
+  sourceName: string;
+  isReddit?: boolean;
+}
+
+const FEEDS: FeedConfig[] = [
+  {
+    url: 'https://airdrops.io/category/hot-airdrops/feed/',
+    sourceName: 'Airdrops.io (Hot)'
+  },
+  {
+    url: 'https://airdrops.io/category/latest-airdrops/feed/',
+    sourceName: 'Airdrops.io (Latest)'
+  },
+  {
+    url: 'https://www.reddit.com/r/airdrops/new/.rss',
+    sourceName: 'Reddit Airdrops',
+    isReddit: true
+  }
 ];
 
+// ============ SMART FILTER KEYWORDS ============
 // POSITIVE KEYWORDS - Must contain at least one for actionable tasks
 const POSITIVE_KEYWORDS = [
-  'claim', 'join', 'participate', 'register', 'waitlist', 
-  'testnet', 'giveaway', 'reward', 'pool', 'launchpad',
-  '$', 'token', 'airdrop', 'earn', 'free', 'bonus',
-  'sign up', 'signup', 'whitelist', 'mint', 'staking'
+  'claim', 'join', 'participate', 'register', 'waitlist',
+  'gleam', 'galxe', 'taskon', 'quest', 'pool',
+  'airdrop', 'giveaway', 'testnet', 'reward', 'earn',
+  'free', 'bonus', 'whitelist', 'mint', 'staking',
+  'zealy', 'intract', 'layer3', 'crew3'
 ];
 
-// NEGATIVE KEYWORDS - Must NOT contain any (filters out news/analysis)
+// NEGATIVE KEYWORDS - Must NOT contain any (filters out news/analysis/spam)
 const NEGATIVE_KEYWORDS = [
-  'analysis', 'report', 'review', 'what means', 'what this means',
-  'summary', 'price', 'prediction', 'market', 'trend', 
+  'price analysis', 'market', 'prediction', 'review', 'summary',
+  'why', 'what is', 'report', 'scam', 'hack', 'rug',
   'overview', 'recap', 'inflows', 'outflows', 'volume',
-  'why', 'how to', 'guide', 'tutorial', 'explained',
-  'news', 'update', 'announcement', 'milestone', 'reaches',
-  'dominates', 'leads', 'captures', 'record', 'historic'
+  'how to', 'guide', 'tutorial', 'explained', 'news',
+  'update', 'announcement', 'milestone', 'reaches',
+  'dominates', 'leads', 'captures', 'record', 'historic',
+  'warning', 'avoid', 'fake', 'phishing', 'suspicious'
 ];
+
+// Regex to extract task platform URLs from Reddit content
+const TASK_PLATFORM_REGEX = /https?:\/\/(?:www\.)?(gleam\.io|galxe\.com|taskon\.xyz|zealy\.io|intract\.io|layer3\.xyz|crew3\.xyz)[^\s<>"')]+/gi;
 
 // Check if title is an actionable task (not news/analysis)
 function isActionable(title: string): boolean {
@@ -35,6 +56,22 @@ function isActionable(title: string): boolean {
   const hasPositive = POSITIVE_KEYWORDS.some(k => lowerTitle.includes(k));
   const hasNegative = NEGATIVE_KEYWORDS.some(k => lowerTitle.includes(k));
   return hasPositive && !hasNegative;
+}
+
+// Extract task platform URL from Reddit content (Gleam, Galxe, etc.)
+function extractTaskPlatformUrl(content: string): string | null {
+  if (!content) return null;
+  
+  // Reset regex lastIndex for global matching
+  TASK_PLATFORM_REGEX.lastIndex = 0;
+  const match = TASK_PLATFORM_REGEX.exec(content);
+  
+  if (match) {
+    // Clean the URL (remove trailing punctuation)
+    return match[0].replace(/[.,;:!?)]+$/, '');
+  }
+  
+  return null;
 }
 
 // Clean and format the title
@@ -160,18 +197,26 @@ export async function GET(request: NextRequest) {
       console.log(`🔒 Using SOCKS5 Proxy: ${proxyUrl}`);
     }
 
-    // Initialize RSS parser
-    const parser = new Parser();
+    // Initialize RSS parser (with custom fields for Reddit)
+    const parser = new Parser({
+      customFields: {
+        item: ['content:encoded', 'content']
+      }
+    });
 
     let totalNewTasks = 0;
     const errors: string[] = [];
-    const createdTasks: string[] = [];
+    const feedStats: { source: string; processed: number; created: number }[] = [];
     const proxyInfo = proxyUrl ? `via proxy ${proxyHost}:${proxyPort}` : 'direct (no proxy)';
 
-    // Process each RSS feed
-    for (const feedUrl of RSS_FEEDS) {
+    // Process each feed source
+    for (const feedConfig of FEEDS) {
+      const { url: feedUrl, sourceName, isReddit } = feedConfig;
+      let processedCount = 0;
+      let createdCount = 0;
+      
       try {
-        console.log(`📡 Fetching ${feedUrl} ${proxyInfo}...`);
+        console.log(`\n📡 [${sourceName}] Fetching ${proxyInfo}...`);
         
         // Fetch RSS XML through proxy using native fetch with agent
         const fetchOptions: RequestInit & { agent?: unknown } = {
@@ -188,11 +233,11 @@ export async function GET(request: NextRequest) {
         const response = await fetch(feedUrl, fetchOptions);
 
         if (!response.ok) {
-          errors.push(`Failed to fetch ${feedUrl}: ${response.status}`);
+          errors.push(`[${sourceName}] HTTP ${response.status}`);
           continue;
         }
 
-        console.log(`✅ Successfully fetched ${feedUrl}`);
+        console.log(`✅ [${sourceName}] Feed fetched successfully`);
         const xmlText = await response.text();
 
         // Parse the XML using rss-parser
@@ -200,57 +245,98 @@ export async function GET(request: NextRequest) {
 
         // Process each item in the feed
         for (const item of feed.items || []) {
-          if (!item.title || !item.link) continue;
+          processedCount++;
+          
+          if (!item.title) continue;
 
-          // Strict filter: only actionable tasks, no news/analysis
+          // Apply Smart Filter on title
           if (!isActionable(item.title)) {
-            console.log(`⏭️ Skipping non-actionable: ${item.title.slice(0, 50)}...`);
+            console.log(`⏭️ [${sourceName}] Skipping: ${item.title.slice(0, 50)}...`);
             continue;
           }
 
+          // Determine the task link
+          let taskLink: string | null = null;
+          
+          if (isReddit) {
+            // Reddit: Extract Gleam/Galxe/TaskOn URL from content
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const itemAny = item as any;
+            const content = itemAny['content:encoded'] 
+              || itemAny['content'] 
+              || item.contentSnippet 
+              || '';
+            
+            taskLink = extractTaskPlatformUrl(content);
+            
+            if (!taskLink) {
+              console.log(`⏭️ [${sourceName}] No task platform URL found: ${item.title.slice(0, 40)}...`);
+              continue; // Skip Reddit posts without external task links
+            }
+          } else {
+            // Standard RSS: Use item link
+            taskLink = item.link || null;
+          }
+
+          if (!taskLink) continue;
+
           // Check if task already exists (by link)
           const existingTask = await prisma.task.findFirst({
-            where: { link: item.link },
+            where: { link: taskLink },
           });
 
-          if (existingTask) continue;
+          if (existingTask) {
+            console.log(`⏭️ [${sourceName}] Duplicate: ${item.title.slice(0, 40)}...`);
+            continue;
+          }
 
           // Clean the title and extract reward
           const cleanedTitle = cleanTitle(item.title);
           const reward = extractReward(item.title);
 
-          // Create new task
-          const newTask = await prisma.task.create({
+          // Create new task (Draft mode for manual review)
+          await prisma.task.create({
             data: {
               title: cleanedTitle,
               description: item.contentSnippet?.slice(0, 500) || cleanedTitle,
               reward,
-              link: item.link,
-              icon: "other",
+              link: taskLink,
+              icon: isReddit ? "community" : "other",
               type: "airdrop",
-              isActive: false, // Draft mode for manual review
+              isActive: false, // Draft mode for admin review
             },
           });
 
-          console.log(`✨ Created: ${cleanedTitle} (+${reward} PTS)`);
+          console.log(`✨ [${sourceName}] Created: ${cleanedTitle} (+${reward} PTS)`);
+          createdCount++;
           totalNewTasks++;
-          createdTasks.push(newTask.title);
         }
+        
+        feedStats.push({ source: sourceName, processed: processedCount, created: createdCount });
+        console.log(`📊 [${sourceName}] Processed ${processedCount} items. Created ${createdCount} new tasks.`);
+        
       } catch (feedError) {
         const errorMsg = feedError instanceof Error ? feedError.message : "Unknown error";
-        errors.push(`Error processing ${feedUrl}: ${errorMsg}`);
-        console.error(`RSS Feed error for ${feedUrl}:`, feedError);
+        errors.push(`[${sourceName}] ${errorMsg}`);
+        console.error(`❌ [${sourceName}] Error:`, feedError);
+        feedStats.push({ source: sourceName, processed: processedCount, created: createdCount });
       }
     }
 
+    // Summary log
+    console.log(`\n========================================`);
+    console.log(`📈 TOTAL: Created ${totalNewTasks} new tasks from ${FEEDS.length} sources`);
+    feedStats.forEach(s => console.log(`   - ${s.source}: ${s.created}/${s.processed} tasks`));
+    console.log(`========================================\n`);
+
     return NextResponse.json({
       success: true,
-      newTasks: totalNewTasks,
-      createdTasks: createdTasks.length > 0 ? createdTasks : undefined,
+      totalNewTasks,
+      feedStats,
       errors: errors.length > 0 ? errors : undefined,
       proxyUsed: proxyUrl ? `${proxyHost}:${proxyPort}` : null,
       message: totalNewTasks > 0
-        ? `Successfully created ${totalNewTasks} new airdrop task(s)`
+        ? `Created ${totalNewTasks} new airdrop task(s) from ${FEEDS.length} sources`
         : "No new airdrops found",
     });
   } catch (error) {
