@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { motion } from "framer-motion";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   Twitter,
   Send,
@@ -15,8 +15,11 @@ import {
   LucideIcon,
   Loader2,
   CalendarCheck,
+  Search,
+  Filter,
+  X,
 } from "lucide-react";
-import { NeonCard, BottomNav, TaskDrawer, DailyCheckInDrawer, FarmingCard } from "@/components/ui";
+import { BottomNav, DailyCheckInDrawer, FarmingCard, TaskCard } from "@/components/ui";
 import type { Task, ApiTask, TasksResponse } from "@/types/task";
 
 // Icon mapping from string to LucideIcon
@@ -64,13 +67,28 @@ export default function Home() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [userBalance, setUserBalance] = useState<number>(0);
   const [isLoading, setIsLoading] = useState(true);
-  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
-  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   
   // Daily check-in state
   const [isCheckInOpen, setIsCheckInOpen] = useState(false);
   const [streak, setStreak] = useState(0);
   const [hasClaimedToday, setHasClaimedToday] = useState(false);
+
+  // Filter & Search state
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedType, setSelectedType] = useState("all");
+  const [selectedStatus, setSelectedStatus] = useState("all");
+  const [availableTypes, setAvailableTypes] = useState<{ type: string; count: number }[]>([]);
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  
+  // Pagination state
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(false);
+  const observerRef = useRef<HTMLDivElement>(null);
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // User rank state
+  const [userRank, setUserRank] = useState<number | null>(null);
 
   // Fetch check-in status
   const fetchCheckInStatus = useCallback(async () => {
@@ -97,8 +115,28 @@ export default function Home() {
     }
   }, []);
 
+  // Fetch user rank from leaderboard
+  const fetchUserRank = useCallback(async () => {
+    try {
+      const telegramId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
+      if (!telegramId) return;
+
+      const response = await fetch("/api/leaderboard", {
+        headers: {
+          "x-telegram-id": telegramId.toString(),
+        },
+      });
+      const data = await response.json();
+      if (data.currentUserRank?.miners) {
+        setUserRank(data.currentUserRank.miners);
+      }
+    } catch (error) {
+      console.error("Failed to fetch user rank:", error);
+    }
+  }, []);
+
   // Fetch tasks from API
-  const fetchTasks = useCallback(async () => {
+  const fetchTasks = useCallback(async (reset = true, cursor?: string) => {
     try {
       // Get user ID from Telegram WebApp
       const telegramId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
@@ -109,7 +147,21 @@ export default function Home() {
         return;
       }
 
-      const response = await fetch("/api/tasks", {
+      if (reset) {
+        setIsLoading(true);
+      } else {
+        setIsLoadingMore(true);
+      }
+
+      // Build query params
+      const params = new URLSearchParams();
+      if (selectedType !== "all") params.set("type", selectedType);
+      if (searchQuery.trim()) params.set("search", searchQuery.trim());
+      if (selectedStatus !== "all") params.set("status", selectedStatus);
+      if (cursor) params.set("cursor", cursor);
+      params.set("limit", "20");
+
+      const response = await fetch(`/api/tasks?${params.toString()}`, {
         headers: {
           "x-telegram-id": telegramId.toString(),
         },
@@ -130,24 +182,81 @@ export default function Home() {
         icon: getIcon(apiTask.icon),
         iconName: apiTask.icon,
         isCompleted: apiTask.isCompleted,
+        type: apiTask.type,
       }));
 
-      setTasks(mappedTasks);
+      if (reset) {
+        setTasks(mappedTasks);
+      } else {
+        setTasks((prev) => [...prev, ...mappedTasks]);
+      }
+      
       setUserBalance(data.userBalance || 0);
+      setHasMore(data.pagination?.hasMore || false);
+      setNextCursor(data.pagination?.nextCursor || null);
+      
+      // Update available filter types
+      if (data.filters?.types) {
+        setAvailableTypes(data.filters.types);
+      }
     } catch (error) {
       console.error("Failed to fetch tasks:", error);
-      // Set empty state on error
-      setTasks([]);
-      setUserBalance(0);
+      if (reset) {
+        setTasks([]);
+        setUserBalance(0);
+      }
     } finally {
       setIsLoading(false);
+      setIsLoadingMore(false);
     }
-  }, []);
+  }, [selectedType, searchQuery, selectedStatus]);
+
+  // Load more tasks
+  const loadMore = useCallback(() => {
+    if (!isLoadingMore && hasMore && nextCursor) {
+      fetchTasks(false, nextCursor);
+    }
+  }, [isLoadingMore, hasMore, nextCursor, fetchTasks]);
+
+  // Intersection Observer for infinite scroll
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !isLoadingMore) {
+          loadMore();
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    if (observerRef.current) {
+      observer.observe(observerRef.current);
+    }
+
+    return () => observer.disconnect();
+  }, [hasMore, isLoadingMore, loadMore]);
+
+  // Debounced search
+  useEffect(() => {
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+    
+    searchTimeoutRef.current = setTimeout(() => {
+      fetchTasks(true);
+    }, 300);
+
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, [searchQuery, selectedType, selectedStatus, fetchTasks]);
 
   useEffect(() => {
-    fetchTasks();
     fetchCheckInStatus();
-  }, [fetchTasks, fetchCheckInStatus]);
+    fetchUserRank();
+  }, [fetchCheckInStatus, fetchUserRank]);
 
   // Handle daily check-in claim
   const handleCheckInClaim = async () => {
@@ -175,17 +284,6 @@ export default function Home() {
     } catch (error) {
       console.error("Failed to claim check-in:", error);
     }
-  };
-
-  const handleTaskClick = (task: Task) => {
-    if (task.isCompleted) return; // Don't open drawer for completed tasks
-    setSelectedTask(task);
-    setIsDrawerOpen(true);
-  };
-
-  const handleCloseDrawer = () => {
-    setIsDrawerOpen(false);
-    setSelectedTask(null);
   };
 
   const handleTaskClaimed = (taskId: string, newBalance: number) => {
@@ -268,13 +366,132 @@ export default function Home() {
         </div>
         <div className="w-px bg-white/10" />
         <div className="text-center">
-          <p className="text-2xl font-bold text-white">#142</p>
+          <p className="text-2xl font-bold text-white">
+            {userRank ? `#${userRank}` : "-"}
+          </p>
           <p className="text-xs text-white/40">Rank</p>
         </div>
       </motion.div>
 
       {/* Farming Card */}
       <FarmingCard onBalanceUpdate={setUserBalance} />
+
+      {/* Search & Filter Section */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, delay: 0.25 }}
+        className="mb-4"
+      >
+        {/* Search Bar */}
+        <div className="relative mb-3">
+          <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40" />
+          <input
+            type="text"
+            placeholder="Search missions..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-10 pr-10 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-neon-green/50 transition-colors"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery("")}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white"
+            >
+              <X size={18} />
+            </button>
+          )}
+        </div>
+
+        {/* Filter Toggle & Quick Filters */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide">
+          <button
+            onClick={() => setIsFilterOpen(!isFilterOpen)}
+            className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-colors shrink-0 ${
+              isFilterOpen || selectedType !== "all" || selectedStatus !== "all"
+                ? "bg-neon-green/20 border-neon-green/50 text-neon-green"
+                : "bg-white/5 border-white/10 text-white/60"
+            }`}
+          >
+            <Filter size={16} />
+            <span className="text-sm">Filters</span>
+          </button>
+          
+          {/* Quick Type Filters */}
+          <button
+            onClick={() => setSelectedType("all")}
+            className={`px-3 py-2 rounded-lg text-sm transition-colors shrink-0 ${
+              selectedType === "all"
+                ? "bg-neon-purple/20 text-neon-purple border border-neon-purple/50"
+                : "bg-white/5 text-white/60 border border-white/10"
+            }`}
+          >
+            All
+          </button>
+          {availableTypes.slice(0, 4).map((t) => (
+            <button
+              key={t.type}
+              onClick={() => setSelectedType(t.type)}
+              className={`px-3 py-2 rounded-lg text-sm transition-colors shrink-0 capitalize ${
+                selectedType === t.type
+                  ? "bg-neon-purple/20 text-neon-purple border border-neon-purple/50"
+                  : "bg-white/5 text-white/60 border border-white/10"
+              }`}
+            >
+              {t.type} ({t.count})
+            </button>
+          ))}
+        </div>
+
+        {/* Expanded Filter Panel */}
+        <AnimatePresence>
+          {isFilterOpen && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              className="overflow-hidden"
+            >
+              <div className="mt-3 p-4 bg-white/5 rounded-xl border border-white/10">
+                <p className="text-xs text-white/40 mb-2">Status</p>
+                <div className="flex gap-2 flex-wrap">
+                  {[
+                    { value: "all", label: "All" },
+                    { value: "pending", label: "Pending" },
+                    { value: "completed", label: "Completed" },
+                  ].map((s) => (
+                    <button
+                      key={s.value}
+                      onClick={() => setSelectedStatus(s.value)}
+                      className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
+                        selectedStatus === s.value
+                          ? "bg-neon-green/20 text-neon-green border border-neon-green/50"
+                          : "bg-white/5 text-white/60 border border-white/10"
+                      }`}
+                    >
+                      {s.label}
+                    </button>
+                  ))}
+                </div>
+                
+                {/* Clear Filters */}
+                {(selectedType !== "all" || selectedStatus !== "all" || searchQuery) && (
+                  <button
+                    onClick={() => {
+                      setSelectedType("all");
+                      setSelectedStatus("all");
+                      setSearchQuery("");
+                    }}
+                    className="mt-3 text-sm text-red-400 hover:text-red-300"
+                  >
+                    Clear all filters
+                  </button>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </motion.div>
 
       {/* Tasks Section Header */}
       <motion.div
@@ -307,78 +524,52 @@ export default function Home() {
           animate="visible"
           className="flex flex-col gap-4"
         >
-          {tasks.map((task, index) => (
-            <motion.div key={task.id} variants={itemVariants}>
-              <NeonCard
-                variant={index === 0 && !task.isCompleted ? "glow" : "default"}
-                className={`flex items-center gap-4 ${
-                  task.isCompleted
-                    ? "opacity-60 cursor-default"
-                    : "cursor-pointer"
-                } ${index === 0 && !task.isCompleted ? "border-neon-green/30" : ""}`}
-                onClick={() => handleTaskClick(task)}
-              >
-                <div
-                  className={`w-12 h-12 rounded-xl flex items-center justify-center ${
-                    task.isCompleted
-                      ? "bg-neon-green/10"
-                      : index === 0
-                      ? "bg-neon-green/20 pulse-glow"
-                      : "bg-white/5"
-                  }`}
+          {tasks.length === 0 ? (
+            <div className="text-center py-12">
+              <p className="text-white/40">No missions found</p>
+              {(searchQuery || selectedType !== "all" || selectedStatus !== "all") && (
+                <button
+                  onClick={() => {
+                    setSearchQuery("");
+                    setSelectedType("all");
+                    setSelectedStatus("all");
+                  }}
+                  className="mt-2 text-neon-green text-sm"
                 >
-                  {task.isCompleted ? (
-                    <span className="text-2xl">✅</span>
-                  ) : (
-                    <task.icon
-                      className={`w-6 h-6 ${
-                        index === 0 ? "text-neon-green" : "text-neon-purple"
-                      }`}
-                    />
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <h3
-                    className={`font-bold truncate ${
-                      task.isCompleted
-                        ? "text-white/50 line-through"
-                        : index === 0
-                        ? "text-neon-green"
-                        : "text-white"
-                    }`}
-                  >
-                    {task.title}
-                  </h3>
-                  <p className="text-sm text-white/40 truncate">
-                    {task.isCompleted ? "Completed" : task.link}
-                  </p>
-                </div>
-                <div className="text-right shrink-0">
-                  {task.isCompleted ? (
-                    <p className="text-neon-green font-bold">DONE</p>
-                  ) : (
-                    <p
-                      className={`font-bold ${
-                        index === 0 ? "text-neon-green text-lg" : "text-white"
-                      }`}
-                    >
-                      +{task.reward.toLocaleString()} PTS
-                    </p>
-                  )}
-                </div>
-              </NeonCard>
-            </motion.div>
-          ))}
+                  Clear filters
+                </button>
+              )}
+            </div>
+          ) : (
+            tasks.map((task, index) => (
+              <motion.div key={task.id} variants={itemVariants}>
+                <TaskCard
+                  task={task}
+                  index={index}
+                  onClaim={handleTaskClaimed}
+                />
+              </motion.div>
+            ))
+          )}
+          
+          {/* Infinite Scroll Trigger */}
+          <div ref={observerRef} className="h-4" />
+          
+          {/* Loading More Indicator */}
+          {isLoadingMore && (
+            <div className="flex justify-center py-4">
+              <Loader2 className="w-6 h-6 text-neon-green animate-spin" />
+            </div>
+          )}
+          
+          {/* End of List */}
+          {!hasMore && tasks.length > 0 && (
+            <p className="text-center text-white/30 text-sm py-4">
+              No more missions
+            </p>
+          )}
         </motion.div>
       )}
-
-      {/* Task Drawer */}
-      <TaskDrawer
-        task={selectedTask}
-        isOpen={isDrawerOpen}
-        onClose={handleCloseDrawer}
-        onClaim={handleTaskClaimed}
-      />
 
       {/* Daily Check-in Drawer */}
       <DailyCheckInDrawer

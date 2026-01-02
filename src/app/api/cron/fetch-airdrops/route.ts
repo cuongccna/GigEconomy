@@ -3,24 +3,109 @@ import { prisma } from "@/lib/prisma";
 import Parser from "rss-parser";
 import { SocksProxyAgent } from "socks-proxy-agent";
 
-// RSS Feed URLs to crawl
+// RSS Feed URLs to crawl - using specific airdrop categories for better quality
 const RSS_FEEDS = [
-  "https://airdrops.io/feed/",
-  // Add more RSS feeds as needed
+  "https://airdrops.io/category/latest-airdrops/feed/",
+  "https://airdrops.io/category/hot-airdrops/feed/",
+  // Fallback to main feed if categories don't work
+  // "https://airdrops.io/feed/",
 ];
 
-// Keywords to filter relevant airdrops
-const KEYWORDS = ["airdrop", "giveaway", "token", "crypto", "free"];
+// POSITIVE KEYWORDS - Must contain at least one for actionable tasks
+const POSITIVE_KEYWORDS = [
+  'claim', 'join', 'participate', 'register', 'waitlist', 
+  'testnet', 'giveaway', 'reward', 'pool', 'launchpad',
+  '$', 'token', 'airdrop', 'earn', 'free', 'bonus',
+  'sign up', 'signup', 'whitelist', 'mint', 'staking'
+];
+
+// NEGATIVE KEYWORDS - Must NOT contain any (filters out news/analysis)
+const NEGATIVE_KEYWORDS = [
+  'analysis', 'report', 'review', 'what means', 'what this means',
+  'summary', 'price', 'prediction', 'market', 'trend', 
+  'overview', 'recap', 'inflows', 'outflows', 'volume',
+  'why', 'how to', 'guide', 'tutorial', 'explained',
+  'news', 'update', 'announcement', 'milestone', 'reaches',
+  'dominates', 'leads', 'captures', 'record', 'historic'
+];
+
+// Check if title is an actionable task (not news/analysis)
+function isActionable(title: string): boolean {
+  const lowerTitle = title.toLowerCase();
+  const hasPositive = POSITIVE_KEYWORDS.some(k => lowerTitle.includes(k));
+  const hasNegative = NEGATIVE_KEYWORDS.some(k => lowerTitle.includes(k));
+  return hasPositive && !hasNegative;
+}
+
+// Clean and format the title
+function cleanTitle(title: string): string {
+  let cleaned = title;
+  
+  // Remove common prefixes like "Project Name (TOKEN) - " or "TOKEN: "
+  cleaned = cleaned.replace(/^\s*[\w\s]+\s*\([A-Z0-9]+\)\s*[-–:]\s*/i, '');
+  cleaned = cleaned.replace(/^[A-Z0-9]{2,10}:\s*/i, '');
+  
+  // Remove trailing " - Airdrops.io" or similar
+  cleaned = cleaned.replace(/\s*[-–|]\s*(Airdrops\.io|airdrops\.io)$/i, '');
+  
+  // Remove excessive whitespace
+  cleaned = cleaned.replace(/\s+/g, ' ').trim();
+  
+  // Capitalize first letter
+  if (cleaned.length > 0) {
+    cleaned = cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+  }
+  
+  return cleaned.slice(0, 200); // Limit length
+}
+
+// Extract prize amount from title if mentioned (e.g., "$10,000 Prize Pool")
+function extractReward(title: string): number {
+  const lowerTitle = title.toLowerCase();
+  
+  // Match patterns like "$10,000", "$1M", "$500K", etc.
+  const patterns = [
+    /\$(\d{1,3}(?:,\d{3})*(?:\.\d+)?)\s*(?:m|million)/i,  // $1M, $1 million
+    /\$(\d{1,3}(?:,\d{3})*(?:\.\d+)?)\s*(?:k|thousand)/i, // $10K, $10 thousand
+    /\$(\d{1,3}(?:,\d{3})*(?:\.\d+)?)/i,                   // $10,000
+  ];
+  
+  for (const pattern of patterns) {
+    const match = title.match(pattern);
+    if (match) {
+      let amount = parseFloat(match[1].replace(/,/g, ''));
+      
+      // Check for multipliers
+      if (/million|m\b/i.test(match[0])) {
+        amount *= 1000000;
+      } else if (/thousand|k\b/i.test(match[0])) {
+        amount *= 1000;
+      }
+      
+      // Convert to points (1 USD = 100 points, capped)
+      const points = Math.min(Math.floor(amount / 10), 10000); // Max 10,000 points
+      if (points >= 100) {
+        return points;
+      }
+    }
+  }
+  
+  // Check for token amount mentions
+  if (lowerTitle.includes('pool') || lowerTitle.includes('prize')) {
+    return randomReward(800, 1500); // Higher reward for prize pools
+  }
+  
+  if (lowerTitle.includes('testnet') || lowerTitle.includes('waitlist')) {
+    return randomReward(300, 600); // Lower for early access
+  }
+  
+  // Default random reward
+  return randomReward(500, 1000);
+}
 
 // Generate random reward between min and max
 function randomReward(min: number, max: number): number {
   return Math.floor(Math.random() * (max - min + 1)) + min;
-}
-
-// Check if title contains any of the keywords
-function matchesKeywords(title: string): boolean {
-  const lowerTitle = title.toLowerCase();
-  return KEYWORDS.some((keyword) => lowerTitle.includes(keyword));
 }
 
 /**
@@ -117,8 +202,11 @@ export async function GET(request: NextRequest) {
         for (const item of feed.items || []) {
           if (!item.title || !item.link) continue;
 
-          // Filter by keywords
-          if (!matchesKeywords(item.title)) continue;
+          // Strict filter: only actionable tasks, no news/analysis
+          if (!isActionable(item.title)) {
+            console.log(`⏭️ Skipping non-actionable: ${item.title.slice(0, 50)}...`);
+            continue;
+          }
 
           // Check if task already exists (by link)
           const existingTask = await prisma.task.findFirst({
@@ -127,12 +215,16 @@ export async function GET(request: NextRequest) {
 
           if (existingTask) continue;
 
+          // Clean the title and extract reward
+          const cleanedTitle = cleanTitle(item.title);
+          const reward = extractReward(item.title);
+
           // Create new task
           const newTask = await prisma.task.create({
             data: {
-              title: item.title.slice(0, 200), // Limit title length
-              description: item.contentSnippet?.slice(0, 500) || item.title,
-              reward: randomReward(500, 1000),
+              title: cleanedTitle,
+              description: item.contentSnippet?.slice(0, 500) || cleanedTitle,
+              reward,
               link: item.link,
               icon: "other",
               type: "airdrop",
@@ -140,6 +232,7 @@ export async function GET(request: NextRequest) {
             },
           });
 
+          console.log(`✨ Created: ${cleanedTitle} (+${reward} PTS)`);
           totalNewTasks++;
           createdTasks.push(newTask.title);
         }
