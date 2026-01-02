@@ -13,6 +13,11 @@ import {
   RefreshCw,
   X,
   Check,
+  Bomb,
+  Ghost,
+  Radar,
+  Flame,
+  Users,
 } from "lucide-react";
 import { BottomNav } from "@/components/ui";
 import { cn } from "@/lib/utils";
@@ -142,12 +147,25 @@ export default function InventoryPage() {
     try {
       const effect = JSON.parse(item.effect);
       switch (effect.type) {
+        case "streak_shield":
         case "shield":
           return <ShieldCheck size={24} className="text-blue-400" />;
         case "luck_boost":
+        case "spin_luck":
           return <Sparkles size={24} className="text-yellow-400" />;
         case "free_spin":
           return <Zap size={24} className="text-neon-purple" />;
+        case "farming_boost":
+          return <Flame size={24} className="text-orange-400" />;
+        case "referral_boost":
+          return <Users size={24} className="text-green-400" />;
+        // PvP Items
+        case "logic_bomb":
+          return <Bomb size={24} className="text-red-400" />;
+        case "phantom_wallet":
+          return <Ghost size={24} className="text-purple-400" />;
+        case "nano_spy_drone":
+          return <Radar size={24} className="text-cyan-400" />;
         default:
           return <Package size={24} className="text-white/60" />;
       }
@@ -389,17 +407,31 @@ export default function InventoryPage() {
                         try {
                           const effect = JSON.parse(selectedItem.effect);
                           switch (effect.type) {
+                            case "streak_shield":
+                              return "Protects your daily streak if you miss a day";
                             case "shield":
                               return "Protects against one PvP attack";
                             case "luck_boost":
-                              return `+${effect.value}% luck on spins (permanent)`;
+                            case "spin_luck":
+                              return `+${effect.bonusChance ? (effect.bonusChance * 100) : effect.value || 5}% luck on spins`;
                             case "free_spin":
-                              return "Get 500 $GIG (one free spin value)";
+                              return `Get ${effect.gigValue || 500} $GIG (one free spin value)`;
+                            case "farming_boost":
+                              return `${((effect.multiplier - 1) * 100).toFixed(0)}% farming speed boost`;
+                            case "referral_boost":
+                              return `${effect.multiplier}x referral rewards for 24 hours`;
+                            // PvP Items
+                            case "logic_bomb":
+                              return `Counter-attack trap: Attacker loses ${effect.penalty || 2000} $GIG to you`;
+                            case "phantom_wallet":
+                              return "Hide your real balance from enemy scans";
+                            case "nano_spy_drone":
+                              return "See through Phantom Wallets during target scan";
                             default:
-                              return effect.description || "Unknown effect";
+                              return effect.description || "Special effect active";
                           }
                         } catch {
-                          return selectedItem.effect;
+                          return selectedItem.effect || "Unknown effect";
                         }
                       })()}
                     </p>

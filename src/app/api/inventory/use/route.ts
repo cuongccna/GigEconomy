@@ -155,6 +155,37 @@ export async function POST(request: NextRequest) {
         };
         break;
 
+      // ===== PVP ITEMS (Passive - cannot be manually used) =====
+      case "logic_bomb":
+        return NextResponse.json({
+          success: false,
+          error: "💣 Logic Bomb is a trap! It triggers automatically when someone attacks you.",
+        }, { status: 400 });
+
+      case "phantom_wallet":
+        return NextResponse.json({
+          success: false,
+          error: "👻 Phantom Wallet is passive! It automatically hides your balance from enemy scans.",
+        }, { status: 400 });
+
+      case "nano_spy_drone":
+        return NextResponse.json({
+          success: false,
+          error: "🛸 Drone is used during target scan in Cyber Heist! Go to Play > Scan with Drone option.",
+        }, { status: 400 });
+
+      case "spin_luck":
+        return NextResponse.json({
+          success: false,
+          error: "🍀 Lucky Charm is passive! It automatically boosts your spin luck.",
+        }, { status: 400 });
+
+      case "farming_boost":
+        return NextResponse.json({
+          success: false,
+          error: "⛏️ Mining Rig is passive! Your farming rate is already boosted.",
+        }, { status: 400 });
+
       default:
         return NextResponse.json(
           { success: false, error: "Unknown item effect" },
