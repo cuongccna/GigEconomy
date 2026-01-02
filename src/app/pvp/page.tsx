@@ -582,7 +582,7 @@ export default function PvPPage() {
         </AnimatePresence>
       </div>
 
-      <BottomNav activeTab="pvp" />
+      <BottomNav activeTab="play" />
     </div>
   );
 }

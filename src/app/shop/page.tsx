@@ -604,7 +604,7 @@ export default function ShopPage() {
         )}
       </AnimatePresence>
 
-      <BottomNav activeTab="shop" />
+      <BottomNav activeTab="home" />
     </div>
   );
 }

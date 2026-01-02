@@ -406,7 +406,7 @@ export default function ProfilePage() {
       />
 
       {/* Bottom Navigation */}
-      <BottomNav activeTab="profile" />
+      <BottomNav activeTab="home" />
     </div>
   );
 }

@@ -469,7 +469,7 @@ export default function LeaderboardPage() {
         </motion.div>
       )}
 
-      <BottomNav activeTab="leaderboard" />
+      <BottomNav activeTab="home" />
     </div>
   );
 }

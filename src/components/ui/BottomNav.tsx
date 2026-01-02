@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Home, Wallet, Disc3, ShoppingBag, Trophy, Swords } from "lucide-react";
+import { Home, Wallet, Gamepad2, Users, Pickaxe } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-type NavItem = "earn" | "spin" | "pvp" | "shop" | "leaderboard" | "friends" | "wallet" | "profile";
+type NavItem = "home" | "earn" | "play" | "friends" | "wallet";
 
 interface NavItemProps {
   icon: React.ReactNode;
@@ -37,13 +37,12 @@ interface BottomNavProps {
   activeTab?: NavItem;
 }
 
-export function BottomNav({ activeTab = "earn" }: BottomNavProps) {
+export function BottomNav({ activeTab = "home" }: BottomNavProps) {
   const navItems: { id: NavItem; icon: React.ReactNode; label: string; href: string }[] = [
-    { id: "earn", icon: <Home size={18} />, label: "Earn", href: "/" },
-    { id: "spin", icon: <Disc3 size={18} />, label: "Spin", href: "/spin" },
-    { id: "pvp", icon: <Swords size={18} />, label: "PvP", href: "/pvp" },
-    { id: "shop", icon: <ShoppingBag size={18} />, label: "Shop", href: "/shop" },
-    { id: "leaderboard", icon: <Trophy size={18} />, label: "Ranks", href: "/leaderboard" },
+    { id: "home", icon: <Home size={18} />, label: "Home", href: "/" },
+    { id: "earn", icon: <Pickaxe size={18} />, label: "Earn", href: "/earn" },
+    { id: "play", icon: <Gamepad2 size={18} />, label: "Play", href: "/play" },
+    { id: "friends", icon: <Users size={18} />, label: "Friends", href: "/friends" },
     { id: "wallet", icon: <Wallet size={18} />, label: "Wallet", href: "/wallet" },
   ];
 

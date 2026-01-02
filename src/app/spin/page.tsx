@@ -718,7 +718,7 @@ export default function SpinPage() {
         )}
       </AnimatePresence>
 
-      <BottomNav activeTab="spin" />
+      <BottomNav activeTab="play" />
     </div>
   );
 }

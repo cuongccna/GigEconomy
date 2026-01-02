@@ -1,115 +1,73 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useState, useEffect, useCallback } from "react";
+import Link from "next/link";
+import Image from "next/image";
+import { motion } from "framer-motion";
 import {
-  Twitter,
-  Send,
-  Coins,
-  Globe,
-  Users,
+  ShoppingBag,
+  Trophy,
+  Package,
+  Settings,
   Zap,
-  Wallet,
+  ChevronRight,
+  Flame,
   Gift,
-  Star,
-  LucideIcon,
-  Loader2,
-  CalendarCheck,
-  Search,
-  Filter,
-  X,
+  Sparkles,
 } from "lucide-react";
-import { BottomNav, DailyCheckInDrawer, FarmingCard, TaskCard } from "@/components/ui";
-import type { Task, ApiTask, TasksResponse } from "@/types/task";
+import { BottomNav, DailyCheckInDrawer } from "@/components/ui";
+import { cn } from "@/lib/utils";
 
-// Icon mapping from string to LucideIcon
-const iconMap: Record<string, LucideIcon> = {
-  Twitter,
-  Send,
-  Coins,
-  Globe,
-  Users,
-  Zap,
-  Wallet,
-  Gift,
-  Star,
-};
+interface UserData {
+  id: string;
+  username: string | null;
+  balance: number;
+  telegramId: string;
+}
 
-const getIcon = (iconName: string): LucideIcon => {
-  return iconMap[iconName] || Gift;
-};
+interface CheckInStatus {
+  canCheckIn: boolean;
+  currentStreak: number;
+  nextReward: number;
+  hasShield: boolean;
+}
 
-const containerVariants = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: {
-      staggerChildren: 0.1,
-      delayChildren: 0.2,
-    },
-  },
-} as const;
-
-const itemVariants = {
-  hidden: { opacity: 0, y: 50 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: {
-      type: "spring" as const,
-      stiffness: 300,
-      damping: 24,
-    },
-  },
-};
-
-export default function Home() {
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [userBalance, setUserBalance] = useState<number>(0);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
-  
-  // Daily check-in state
+export default function HomePage() {
+  const [user, setUser] = useState<UserData | null>(null);
+  const [checkInStatus, setCheckInStatus] = useState<CheckInStatus | null>(null);
   const [isCheckInOpen, setIsCheckInOpen] = useState(false);
-  const [hasClaimedToday, setHasClaimedToday] = useState(false);
-  const [streak, setStreak] = useState(0);
 
-  // Filter & Search state
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedType, setSelectedType] = useState("all");
-  const [selectedStatus, setSelectedStatus] = useState("all");
-  const [availableTypes, setAvailableTypes] = useState<{ type: string; count: number }[]>([]);
-  const [isFilterOpen, setIsFilterOpen] = useState(false);
-  
-  // Pagination state
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
-  const [hasMore, setHasMore] = useState(false);
-  const observerRef = useRef<HTMLDivElement>(null);
-  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  // Fetch user data
+  const fetchUserData = useCallback(async () => {
+    try {
+      const telegramId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
+      if (!telegramId) return;
 
-  // User rank state
-  const [userRank, setUserRank] = useState<number | null>(null);
+      const response = await fetch("/api/auth", {
+        headers: { "x-telegram-id": telegramId.toString() },
+      });
+      const data = await response.json();
+      if (data.user) {
+        setUser(data.user);
+      }
+    } catch (error) {
+      console.error("Failed to fetch user:", error);
+    }
+  }, []);
 
-  // Fetch check-in status and auto-open if can check in
+  // Fetch check-in status
   const fetchCheckInStatus = useCallback(async () => {
     try {
-      // Get user ID from Telegram WebApp
       const telegramId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
-      
-      if (!telegramId) {
-        return;
-      }
+      if (!telegramId) return;
 
       const response = await fetch("/api/daily-checkin/status", {
-        headers: {
-          "x-telegram-id": telegramId.toString(),
-        },
+        headers: { "x-telegram-id": telegramId.toString() },
       });
       const data = await response.json();
       if (data.success) {
-        setHasClaimedToday(!data.canCheckIn);
-        setStreak(data.currentStreak);
-        // Auto-open modal if user can check in
+        setCheckInStatus(data);
+        // Auto-open if can check in
         if (data.canCheckIn) {
           setIsCheckInOpen(true);
         }
@@ -119,441 +77,263 @@ export default function Home() {
     }
   }, []);
 
-  // Fetch user rank from leaderboard
-  const fetchUserRank = useCallback(async () => {
-    try {
-      const telegramId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
-      if (!telegramId) return;
-
-      const response = await fetch("/api/leaderboard", {
-        headers: {
-          "x-telegram-id": telegramId.toString(),
-        },
-      });
-      const data = await response.json();
-      if (data.currentUserRank?.miners) {
-        setUserRank(data.currentUserRank.miners);
-      }
-    } catch (error) {
-      console.error("Failed to fetch user rank:", error);
-    }
-  }, []);
-
-  // Fetch tasks from API
-  const fetchTasks = useCallback(async (reset = true, cursor?: string) => {
-    try {
-      // Get user ID from Telegram WebApp
-      const telegramId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
-      
-      if (!telegramId) {
-        console.warn("No Telegram ID found, skipping fetch");
-        setIsLoading(false);
-        return;
-      }
-
-      if (reset) {
-        setIsLoading(true);
-      } else {
-        setIsLoadingMore(true);
-      }
-
-      // Build query params
-      const params = new URLSearchParams();
-      if (selectedType !== "all") params.set("type", selectedType);
-      if (searchQuery.trim()) params.set("search", searchQuery.trim());
-      if (selectedStatus !== "all") params.set("status", selectedStatus);
-      if (cursor) params.set("cursor", cursor);
-      params.set("limit", "20");
-
-      const response = await fetch(`/api/tasks?${params.toString()}`, {
-        headers: {
-          "x-telegram-id": telegramId.toString(),
-        },
-      });
-      
-      if (!response.ok) {
-        throw new Error("Failed to fetch tasks");
-      }
-
-      const data: TasksResponse = await response.json();
-
-      // Map API tasks to UI tasks with resolved icons
-      const mappedTasks: Task[] = (data.tasks || []).map((apiTask: ApiTask) => ({
-        id: apiTask.id,
-        title: apiTask.title,
-        reward: apiTask.reward,
-        link: apiTask.link,
-        icon: getIcon(apiTask.icon),
-        iconName: apiTask.icon,
-        isCompleted: apiTask.isCompleted,
-        type: apiTask.type,
-      }));
-
-      if (reset) {
-        setTasks(mappedTasks);
-      } else {
-        setTasks((prev) => [...prev, ...mappedTasks]);
-      }
-      
-      setUserBalance(data.userBalance || 0);
-      setHasMore(data.pagination?.hasMore || false);
-      setNextCursor(data.pagination?.nextCursor || null);
-      
-      // Update available filter types
-      if (data.filters?.types) {
-        setAvailableTypes(data.filters.types);
-      }
-    } catch (error) {
-      console.error("Failed to fetch tasks:", error);
-      if (reset) {
-        setTasks([]);
-        setUserBalance(0);
-      }
-    } finally {
-      setIsLoading(false);
-      setIsLoadingMore(false);
-    }
-  }, [selectedType, searchQuery, selectedStatus]);
-
-  // Load more tasks
-  const loadMore = useCallback(() => {
-    if (!isLoadingMore && hasMore && nextCursor) {
-      fetchTasks(false, nextCursor);
-    }
-  }, [isLoadingMore, hasMore, nextCursor, fetchTasks]);
-
-  // Intersection Observer for infinite scroll
   useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting && hasMore && !isLoadingMore) {
-          loadMore();
-        }
-      },
-      { threshold: 0.1 }
-    );
-
-    if (observerRef.current) {
-      observer.observe(observerRef.current);
-    }
-
-    return () => observer.disconnect();
-  }, [hasMore, isLoadingMore, loadMore]);
-
-  // Debounced search
-  useEffect(() => {
-    if (searchTimeoutRef.current) {
-      clearTimeout(searchTimeoutRef.current);
-    }
-    
-    searchTimeoutRef.current = setTimeout(() => {
-      fetchTasks(true);
-    }, 300);
-
-    return () => {
-      if (searchTimeoutRef.current) {
-        clearTimeout(searchTimeoutRef.current);
-      }
-    };
-  }, [searchQuery, selectedType, selectedStatus, fetchTasks]);
-
-  useEffect(() => {
+    fetchUserData();
     fetchCheckInStatus();
-    fetchUserRank();
-  }, [fetchCheckInStatus, fetchUserRank]);
+  }, [fetchUserData, fetchCheckInStatus]);
 
-  // Handle balance update from check-in drawer
   const handleBalanceUpdate = (newBalance: number) => {
-    setUserBalance(newBalance);
-    setHasClaimedToday(true);
-    // Refetch status to update streak display
+    setUser((prev) => (prev ? { ...prev, balance: newBalance } : null));
     fetchCheckInStatus();
   };
 
-  const handleTaskClaimed = (taskId: string, newBalance: number) => {
-    // Optimistic UI update
-    setUserBalance(newBalance);
-    setTasks((prevTasks) =>
-      prevTasks.map((task) =>
-        task.id === taskId ? { ...task, isCompleted: true } : task
-      )
-    );
-  };
+  // Generate avatar URL
+  const avatarUrl = user?.telegramId
+    ? `https://api.dicebear.com/7.x/pixel-art/svg?seed=${user.telegramId}`
+    : "/default-avatar.png";
 
-  const activeTasks = tasks.filter((t) => !t.isCompleted);
-  const completedCount = tasks.filter((t) => t.isCompleted).length;
+  const quickActions = [
+    {
+      id: "shop",
+      title: "Cyber Market",
+      subtitle: "Power-ups & Items",
+      icon: <ShoppingBag size={32} className="text-neon-purple" />,
+      href: "/shop",
+      gradient: "from-purple-900/40 to-purple-950/40",
+      borderColor: "border-purple-500/30",
+      glowColor: "hover:shadow-[0_0_30px_rgba(128,0,255,0.3)]",
+    },
+    {
+      id: "leaderboard",
+      title: "Hall of Fame",
+      subtitle: "Top Agents",
+      icon: <Trophy size={32} className="text-yellow-400" />,
+      href: "/leaderboard",
+      gradient: "from-yellow-900/40 to-yellow-950/40",
+      borderColor: "border-yellow-500/30",
+      glowColor: "hover:shadow-[0_0_30px_rgba(255,200,0,0.3)]",
+    },
+    {
+      id: "inventory",
+      title: "Inventory",
+      subtitle: "Your Items",
+      icon: <Package size={32} className="text-blue-400" />,
+      href: "/inventory",
+      gradient: "from-blue-900/40 to-blue-950/40",
+      borderColor: "border-blue-500/30",
+      glowColor: "hover:shadow-[0_0_30px_rgba(0,100,255,0.3)]",
+    },
+    {
+      id: "profile",
+      title: "Settings",
+      subtitle: "Profile & More",
+      icon: <Settings size={32} className="text-white/70" />,
+      href: "/profile",
+      gradient: "from-gray-800/40 to-gray-900/40",
+      borderColor: "border-white/20",
+      glowColor: "hover:shadow-[0_0_30px_rgba(255,255,255,0.1)]",
+    },
+  ];
 
   return (
-    <div className="min-h-screen dark-gradient cyber-grid px-4 pt-8 pb-28">
-      {/* Daily Gift Button - Fixed Position */}
-      <motion.button
-        initial={{ opacity: 0, scale: 0 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ delay: 0.5, type: "spring" }}
-        whileTap={{ scale: 0.9 }}
-        onClick={() => setIsCheckInOpen(true)}
-        className="fixed top-4 right-4 z-30 p-3 rounded-full bg-neon-purple/20 border border-neon-purple/30 backdrop-blur-sm"
-      >
-        <CalendarCheck size={24} className="text-neon-purple" />
-        {/* Notification dot */}
-        {!hasClaimedToday && (
-          <motion.div
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full border-2 border-bg-dark"
-          >
-            <motion.div
-              className="absolute inset-0 bg-red-500 rounded-full"
-              animate={{ scale: [1, 1.5, 1], opacity: [1, 0, 1] }}
-              transition={{ duration: 1.5, repeat: Infinity }}
-            />
-          </motion.div>
-        )}
-      </motion.button>
-
-      {/* Header / Balance Section */}
+    <div className="min-h-screen dark-gradient cyber-grid px-4 pt-6 pb-28">
+      {/* Header - Avatar & Balance */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6, ease: "easeOut" }}
-        className="text-center mb-10"
+        className="flex items-center justify-between mb-8"
       >
-        <p className="text-white/50 text-xs uppercase tracking-[0.3em] mb-3">
-          Total Balance
-        </p>
-        <div className="relative inline-block">
-          <h1 className="text-6xl md:text-7xl font-bold text-neon-green neon-glow">
-            {userBalance.toLocaleString()}
-          </h1>
-          <span className="absolute -right-16 top-1/2 -translate-y-1/2 text-xl font-bold text-neon-purple">
-            $GIG
-          </span>
-        </div>
-        <p className="text-white/30 text-sm mt-3">≈ ${(userBalance / 100).toFixed(2)} USD</p>
-      </motion.div>
-
-      {/* Stats Bar */}
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.5, delay: 0.2 }}
-        className="flex justify-center gap-8 mb-10"
-      >
-        <div className="text-center">
-          <p className="text-2xl font-bold text-neon-green">{completedCount}</p>
-          <p className="text-xs text-white/40">Tasks Done</p>
-        </div>
-        <div className="w-px bg-white/10" />
-        <div className="text-center">
-          <p className="text-2xl font-bold text-neon-purple">{streak}</p>
-          <p className="text-xs text-white/40">Day Streak</p>
-        </div>
-        <div className="w-px bg-white/10" />
-        <div className="text-center">
-          <p className="text-2xl font-bold text-white">
-            {userRank ? `#${userRank}` : "-"}
-          </p>
-          <p className="text-xs text-white/40">Rank</p>
-        </div>
-      </motion.div>
-
-      {/* Farming Card */}
-      <FarmingCard onBalanceUpdate={setUserBalance} />
-
-      {/* Search & Filter Section */}
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, delay: 0.25 }}
-        className="mb-4"
-      >
-        {/* Search Bar */}
-        <div className="relative mb-3">
-          <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40" />
-          <input
-            type="text"
-            placeholder="Search missions..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-10 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-neon-green/50 transition-colors"
-          />
-          {searchQuery && (
-            <button
-              onClick={() => setSearchQuery("")}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white"
-            >
-              <X size={18} />
-            </button>
-          )}
-        </div>
-
-        {/* Filter Toggle & Quick Filters */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide">
-          <button
-            onClick={() => setIsFilterOpen(!isFilterOpen)}
-            className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-colors shrink-0 ${
-              isFilterOpen || selectedType !== "all" || selectedStatus !== "all"
-                ? "bg-neon-green/20 border-neon-green/50 text-neon-green"
-                : "bg-white/5 border-white/10 text-white/60"
-            }`}
-          >
-            <Filter size={16} />
-            <span className="text-sm">Filters</span>
-          </button>
-          
-          {/* Quick Type Filters */}
-          <button
-            onClick={() => setSelectedType("all")}
-            className={`px-3 py-2 rounded-lg text-sm transition-colors shrink-0 ${
-              selectedType === "all"
-                ? "bg-neon-purple/20 text-neon-purple border border-neon-purple/50"
-                : "bg-white/5 text-white/60 border border-white/10"
-            }`}
-          >
-            All
-          </button>
-          {availableTypes.slice(0, 4).map((t) => (
-            <button
-              key={t.type}
-              onClick={() => setSelectedType(t.type)}
-              className={`px-3 py-2 rounded-lg text-sm transition-colors shrink-0 capitalize ${
-                selectedType === t.type
-                  ? "bg-neon-purple/20 text-neon-purple border border-neon-purple/50"
-                  : "bg-white/5 text-white/60 border border-white/10"
-              }`}
-            >
-              {t.type} ({t.count})
-            </button>
-          ))}
-        </div>
-
-        {/* Expanded Filter Panel */}
-        <AnimatePresence>
-          {isFilterOpen && (
+        {/* User Info */}
+        <Link href="/profile" className="flex items-center gap-3">
+          <div className="relative">
+            <Image
+              src={avatarUrl}
+              alt="Avatar"
+              width={48}
+              height={48}
+              className="w-12 h-12 rounded-full border-2 border-neon-green/50"
+              unoptimized
+            />
             <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: "auto" }}
-              exit={{ opacity: 0, height: 0 }}
-              className="overflow-hidden"
-            >
-              <div className="mt-3 p-4 bg-white/5 rounded-xl border border-white/10">
-                <p className="text-xs text-white/40 mb-2">Status</p>
-                <div className="flex gap-2 flex-wrap">
-                  {[
-                    { value: "all", label: "All" },
-                    { value: "pending", label: "Pending" },
-                    { value: "completed", label: "Completed" },
-                  ].map((s) => (
-                    <button
-                      key={s.value}
-                      onClick={() => setSelectedStatus(s.value)}
-                      className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
-                        selectedStatus === s.value
-                          ? "bg-neon-green/20 text-neon-green border border-neon-green/50"
-                          : "bg-white/5 text-white/60 border border-white/10"
-                      }`}
-                    >
-                      {s.label}
-                    </button>
-                  ))}
-                </div>
-                
-                {/* Clear Filters */}
-                {(selectedType !== "all" || selectedStatus !== "all" || searchQuery) && (
-                  <button
-                    onClick={() => {
-                      setSelectedType("all");
-                      setSelectedStatus("all");
-                      setSearchQuery("");
-                    }}
-                    className="mt-3 text-sm text-red-400 hover:text-red-300"
-                  >
-                    Clear all filters
-                  </button>
-                )}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </motion.div>
+              className="absolute inset-0 rounded-full border-2 border-neon-green/30"
+              animate={{ scale: [1, 1.1, 1], opacity: [0.5, 0, 0.5] }}
+              transition={{ duration: 2, repeat: Infinity }}
+            />
+          </div>
+          <div>
+            <p className="text-white/50 text-xs">Welcome back,</p>
+            <p className="text-white font-bold">
+              {user?.username || `Agent-${user?.telegramId?.slice(-4) || "????"}`}
+            </p>
+          </div>
+        </Link>
 
-      {/* Tasks Section Header */}
-      <motion.div
-        initial={{ opacity: 0, x: -20 }}
-        animate={{ opacity: 1, x: 0 }}
-        transition={{ duration: 0.5, delay: 0.3 }}
-        className="flex items-center justify-between mb-6"
-      >
-        <h2 className="text-lg font-bold text-white">
-          🎯 Available Missions
-        </h2>
-        <span className="text-xs text-neon-green bg-neon-green/10 px-3 py-1 rounded-full">
-          {activeTasks.length} Active
-        </span>
-      </motion.div>
-
-      {/* Loading State */}
-      {isLoading && (
-        <div className="flex flex-col items-center justify-center py-20">
-          <Loader2 className="w-10 h-10 text-neon-green animate-spin mb-4" />
-          <p className="text-white/50">Loading missions...</p>
+        {/* Balance */}
+        <div className="text-right">
+          <p className="text-white/50 text-xs">Balance</p>
+          <p className="text-2xl font-bold text-neon-green neon-glow">
+            {(user?.balance || 0).toLocaleString()}
+            <span className="text-sm text-neon-purple ml-1">$GIG</span>
+          </p>
         </div>
-      )}
+      </motion.div>
 
-      {/* Task List */}
-      {!isLoading && (
-        <motion.div
-          variants={containerVariants}
-          initial="hidden"
-          animate="visible"
-          className="flex flex-col gap-4"
-        >
-          {tasks.length === 0 ? (
-            <div className="text-center py-12">
-              <p className="text-white/40">No missions found</p>
-              {(searchQuery || selectedType !== "all" || selectedStatus !== "all") && (
-                <button
-                  onClick={() => {
-                    setSearchQuery("");
-                    setSelectedType("all");
-                    setSelectedStatus("all");
-                  }}
-                  className="mt-2 text-neon-green text-sm"
-                >
-                  Clear filters
-                </button>
+      {/* Daily Check-in Card */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1 }}
+        onClick={() => setIsCheckInOpen(true)}
+        className={cn(
+          "mb-6 p-4 rounded-2xl cursor-pointer",
+          "bg-gradient-to-r from-neon-green/10 to-neon-purple/10",
+          "border border-neon-green/30",
+          "shadow-[0_0_20px_rgba(0,255,148,0.1)]",
+          "hover:shadow-[0_0_30px_rgba(0,255,148,0.2)]",
+          "transition-all duration-300"
+        )}
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-full bg-neon-green/20 flex items-center justify-center">
+              {checkInStatus?.canCheckIn ? (
+                <Gift size={24} className="text-neon-green" />
+              ) : (
+                <Flame size={24} className="text-orange-400" />
               )}
             </div>
-          ) : (
-            tasks.map((task, index) => (
-              <motion.div key={task.id} variants={itemVariants}>
-                <TaskCard
-                  task={task}
-                  index={index}
-                  onClaim={handleTaskClaimed}
-                />
-              </motion.div>
-            ))
-          )}
-          
-          {/* Infinite Scroll Trigger */}
-          <div ref={observerRef} className="h-4" />
-          
-          {/* Loading More Indicator */}
-          {isLoadingMore && (
-            <div className="flex justify-center py-4">
-              <Loader2 className="w-6 h-6 text-neon-green animate-spin" />
+            <div>
+              <p className="text-white font-bold">Daily Check-in</p>
+              <p className="text-white/50 text-sm">
+                {checkInStatus?.canCheckIn
+                  ? `Claim +${checkInStatus.nextReward} $GIG`
+                  : `🔥 ${checkInStatus?.currentStreak || 0} Day Streak`}
+              </p>
             </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {checkInStatus?.canCheckIn && (
+              <motion.span
+                animate={{ scale: [1, 1.1, 1] }}
+                transition={{ duration: 1, repeat: Infinity }}
+                className="px-3 py-1 rounded-full bg-neon-green text-bg-dark text-xs font-bold"
+              >
+                CLAIM
+              </motion.span>
+            )}
+            <ChevronRight size={20} className="text-white/40" />
+          </div>
+        </div>
+      </motion.div>
+
+      {/* Quick Actions Grid */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.2 }}
+        className="mb-6"
+      >
+        <h2 className="text-white/70 text-sm font-medium mb-3 flex items-center gap-2">
+          <Zap size={16} className="text-neon-purple" />
+          Quick Actions
+        </h2>
+        <div className="grid grid-cols-2 gap-3">
+          {quickActions.map((action, index) => (
+            <motion.div
+              key={action.id}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 + index * 0.1 }}
+            >
+              <Link
+                href={action.href}
+                className={cn(
+                  "block p-4 rounded-2xl",
+                  "bg-gradient-to-br",
+                  action.gradient,
+                  "border",
+                  action.borderColor,
+                  "backdrop-blur-xl",
+                  "transition-all duration-300",
+                  action.glowColor
+                )}
+              >
+                <div className="mb-3">{action.icon}</div>
+                <p className="text-white font-bold text-sm">{action.title}</p>
+                <p className="text-white/40 text-xs">{action.subtitle}</p>
+              </Link>
+            </motion.div>
+          ))}
+        </div>
+      </motion.div>
+
+      {/* Hot Airdrop Banner */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.4 }}
+        className="mb-6"
+      >
+        <h2 className="text-white/70 text-sm font-medium mb-3 flex items-center gap-2">
+          <Sparkles size={16} className="text-yellow-400" />
+          Featured
+        </h2>
+        <Link
+          href="/earn"
+          className={cn(
+            "block p-5 rounded-2xl",
+            "bg-gradient-to-r from-orange-900/30 via-red-900/30 to-pink-900/30",
+            "border border-orange-500/30",
+            "hover:shadow-[0_0_30px_rgba(255,100,0,0.2)]",
+            "transition-all duration-300"
           )}
-          
-          {/* End of List */}
-          {!hasMore && tasks.length > 0 && (
-            <p className="text-center text-white/30 text-sm py-4">
-              No more missions
-            </p>
-          )}
-        </motion.div>
-      )}
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <span className="px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-400 text-[10px] font-bold uppercase">
+                  Hot
+                </span>
+                <span className="text-white/50 text-xs">Limited Time</span>
+              </div>
+              <p className="text-white font-bold text-lg mb-1">
+                Complete Tasks & Earn
+              </p>
+              <p className="text-white/50 text-sm">
+                New missions available! Earn up to 5,000 $GIG
+              </p>
+            </div>
+            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-orange-500/20 to-red-500/20 flex items-center justify-center">
+              <Flame size={32} className="text-orange-400" />
+            </div>
+          </div>
+        </Link>
+      </motion.div>
+
+      {/* Stats Row */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.5 }}
+        className="grid grid-cols-3 gap-3 mb-6"
+      >
+        <div className="p-4 rounded-xl bg-white/5 border border-white/10 text-center">
+          <p className="text-2xl font-bold text-neon-green">
+            {checkInStatus?.currentStreak || 0}
+          </p>
+          <p className="text-white/40 text-xs">Day Streak</p>
+        </div>
+        <div className="p-4 rounded-xl bg-white/5 border border-white/10 text-center">
+          <p className="text-2xl font-bold text-neon-purple">
+            {checkInStatus?.hasShield ? "1" : "0"}
+          </p>
+          <p className="text-white/40 text-xs">Shields</p>
+        </div>
+        <div className="p-4 rounded-xl bg-white/5 border border-white/10 text-center">
+          <p className="text-2xl font-bold text-yellow-400">-</p>
+          <p className="text-white/40 text-xs">Rank</p>
+        </div>
+      </motion.div>
 
       {/* Daily Check-in Drawer */}
       <DailyCheckInDrawer
@@ -563,7 +343,7 @@ export default function Home() {
       />
 
       {/* Bottom Navigation */}
-      <BottomNav activeTab="earn" />
+      <BottomNav activeTab="home" />
     </div>
   );
 }
