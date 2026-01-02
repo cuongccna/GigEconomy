@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { isAdmin } from "@/lib/admin";
+import { isAdminByTelegramId } from "@/lib/admin";
 import { broadcastToUsers, formatCustomAnnouncement } from "@/lib/telegram";
 
 /**
@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
   try {
     // Check admin authorization
     const telegramId = request.headers.get("x-telegram-id");
-    if (!telegramId || !(await isAdmin(telegramId))) {
+    if (!telegramId || !(await isAdminByTelegramId(telegramId))) {
       return NextResponse.json(
         { success: false, error: "Unauthorized" },
         { status: 401 }
@@ -137,7 +137,7 @@ export async function GET(request: NextRequest) {
   try {
     // Check admin authorization
     const telegramId = request.headers.get("x-telegram-id");
-    if (!telegramId || !(await isAdmin(telegramId))) {
+    if (!telegramId || !(await isAdminByTelegramId(telegramId))) {
       return NextResponse.json(
         { success: false, error: "Unauthorized" },
         { status: 401 }
