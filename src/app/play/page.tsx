@@ -27,9 +27,7 @@ export default function PlayPage() {
       const telegramId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
       if (!telegramId) return;
 
-      const response = await fetch("/api/auth", {
-        headers: { "x-telegram-id": telegramId.toString() },
-      });
+      const response = await fetch(`/api/auth?telegramId=${telegramId}`);
       const data = await response.json();
       if (data.user) {
         setBalance(data.user.balance);

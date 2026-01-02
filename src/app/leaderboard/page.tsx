@@ -16,6 +16,9 @@ import { BottomNav } from "@/components/ui";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 
+// Default avatar fallback
+const DEFAULT_AVATAR = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect fill='%23374151' width='100' height='100'/%3E%3Ctext x='50' y='55' font-size='40' text-anchor='middle' fill='%239CA3AF'%3E?%3C/text%3E%3C/svg%3E";
+
 // Types
 interface LeaderboardUser {
   rank: number;
@@ -125,6 +128,7 @@ function PodiumUser({
             src={user.avatarUrl}
             alt={user.displayName}
             className="w-full h-full object-cover"
+            onError={(e) => { e.currentTarget.src = DEFAULT_AVATAR; }}
           />
         </div>
         {/* Rank Badge */}
@@ -208,6 +212,7 @@ function LeaderboardRow({
           src={user.avatarUrl}
           alt={user.displayName}
           className="w-full h-full object-cover"
+          onError={(e) => { e.currentTarget.src = DEFAULT_AVATAR; }}
         />
       </div>
 

@@ -30,12 +30,15 @@ interface CheckInStatus {
   currentStreak: number;
   nextReward: number;
   hasShield: boolean;
+  shieldCount?: number;
 }
 
 export default function HomePage() {
   const [user, setUser] = useState<UserData | null>(null);
   const [checkInStatus, setCheckInStatus] = useState<CheckInStatus | null>(null);
   const [isCheckInOpen, setIsCheckInOpen] = useState(false);
+  const [userRank, setUserRank] = useState<number | null>(null);
+  const [avatarError, setAvatarError] = useState(false);
 
   // Fetch user data
   const fetchUserData = useCallback(async () => {
@@ -43,9 +46,7 @@ export default function HomePage() {
       const telegramId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
       if (!telegramId) return;
 
-      const response = await fetch("/api/auth", {
-        headers: { "x-telegram-id": telegramId.toString() },
-      });
+      const response = await fetch(`/api/auth?telegramId=${telegramId}`);
       const data = await response.json();
       if (data.user) {
         setUser(data.user);
@@ -77,20 +78,40 @@ export default function HomePage() {
     }
   }, []);
 
+  // Fetch user rank from leaderboard
+  const fetchUserRank = useCallback(async () => {
+    try {
+      const telegramId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
+      if (!telegramId) return;
+
+      const response = await fetch("/api/leaderboard", {
+        headers: { "x-telegram-id": telegramId.toString() },
+      });
+      const data = await response.json();
+      if (data.currentUserRank?.miners) {
+        setUserRank(data.currentUserRank.miners);
+      }
+    } catch (error) {
+      console.error("Failed to fetch user rank:", error);
+    }
+  }, []);
+
   useEffect(() => {
     fetchUserData();
     fetchCheckInStatus();
-  }, [fetchUserData, fetchCheckInStatus]);
+    fetchUserRank();
+  }, [fetchUserData, fetchCheckInStatus, fetchUserRank]);
 
   const handleBalanceUpdate = (newBalance: number) => {
     setUser((prev) => (prev ? { ...prev, balance: newBalance } : null));
     fetchCheckInStatus();
   };
 
-  // Generate avatar URL
-  const avatarUrl = user?.telegramId
-    ? `https://api.dicebear.com/7.x/pixel-art/svg?seed=${user.telegramId}`
-    : "/default-avatar.png";
+  // Generate avatar URL with fallback
+  const defaultAvatar = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect fill='%23374151' width='100' height='100'/%3E%3Ctext x='50' y='55' font-size='40' text-anchor='middle' fill='%239CA3AF'%3E?%3C/text%3E%3C/svg%3E";
+  const avatarUrl = avatarError || !user?.telegramId
+    ? defaultAvatar
+    : `https://api.dicebear.com/7.x/pixel-art/svg?seed=${user.telegramId}`;
 
   const quickActions = [
     {
@@ -153,6 +174,7 @@ export default function HomePage() {
               height={48}
               className="w-12 h-12 rounded-full border-2 border-neon-green/50"
               unoptimized
+              onError={() => setAvatarError(true)}
             />
             <motion.div
               className="absolute inset-0 rounded-full border-2 border-neon-green/30"
@@ -325,12 +347,14 @@ export default function HomePage() {
         </div>
         <div className="p-4 rounded-xl bg-white/5 border border-white/10 text-center">
           <p className="text-2xl font-bold text-neon-purple">
-            {checkInStatus?.hasShield ? "1" : "0"}
+            {checkInStatus?.shieldCount || 0}
           </p>
           <p className="text-white/40 text-xs">Shields</p>
         </div>
         <div className="p-4 rounded-xl bg-white/5 border border-white/10 text-center">
-          <p className="text-2xl font-bold text-yellow-400">-</p>
+          <p className="text-2xl font-bold text-yellow-400">
+            {userRank ? `#${userRank}` : "-"}
+          </p>
           <p className="text-white/40 text-xs">Rank</p>
         </div>
       </motion.div>
