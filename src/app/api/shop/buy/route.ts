@@ -95,7 +95,14 @@ export async function POST(request: NextRequest) {
     }
 
     // Parse item effect
-    const effect = JSON.parse(item.effect);
+    let effect: { type?: string; [key: string]: unknown } = {};
+    try {
+      effect = JSON.parse(item.effect);
+    } catch {
+      // If effect is not valid JSON, use empty object
+      effect = { type: "unknown" };
+    }
+    
     let additionalUpdates = {};
     let immediateEffect = null;
 
@@ -113,10 +120,11 @@ export async function POST(request: NextRequest) {
 
       case "farming_boost":
         // Mining Rig: Permanently increase farming rate
+        const multiplier = (effect.multiplier as number) || 1.2;
         additionalUpdates = {
-          farmingRate: user.farmingRate * effect.multiplier,
+          farmingRate: user.farmingRate * multiplier,
         };
-        immediateEffect = `Farming speed increased to ${(user.farmingRate * effect.multiplier).toFixed(2)}/hour`;
+        immediateEffect = `Farming speed increased to ${(user.farmingRate * multiplier).toFixed(2)}/hour`;
         break;
 
       case "streak_shield":
@@ -134,7 +142,25 @@ export async function POST(request: NextRequest) {
         immediateEffect = "Referral rewards doubled for 24 hours!";
         break;
 
+      // ===== PVP ITEMS =====
+      case "logic_bomb":
+        // Logic Bomb (Cyber Mine): Stored in inventory, triggers when attacked
+        immediateEffect = "💣 Logic Bomb planted! Next attacker will regret it.";
+        break;
+
+      case "phantom_wallet":
+        // Phantom Wallet: Hides real balance from attackers
+        immediateEffect = "👻 Phantom Wallet activated! Your balance is now hidden.";
+        break;
+
+      case "nano_spy_drone":
+        // Nano-Spy Drone: See through Phantom Wallets during scan
+        immediateEffect = "🛸 Drone ready! Use it to reveal hidden enemy balances.";
+        break;
+
       default:
+        // Generic consumable - just add to inventory
+        immediateEffect = `${item.name} added to your inventory.`;
         break;
     }
 

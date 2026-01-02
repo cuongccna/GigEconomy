@@ -78,6 +78,43 @@ const shopItems = [
       description: "2x referral rewards for 24 hours"
     }),
   },
+  // ===== PVP ITEMS =====
+  {
+    name: "Logic Bomb",
+    description: "A deadly defensive trap. If someone hacks you, this bomb explodes! The attacker fails and loses 2,000 $GIG directly to you. The ultimate revenge.",
+    price: 5000,
+    image: "/items/logic-bomb.png",
+    type: "consumable",
+    effect: JSON.stringify({
+      type: "logic_bomb",
+      penalty: 2000,
+      description: "Counter-attack: Attacker loses 2000 $GIG to you"
+    }),
+  },
+  {
+    name: "Phantom Wallet",
+    description: "Hide your true balance from enemy scans. Attackers will see a fake low balance, making you a less attractive target.",
+    price: 8000,
+    image: "/items/phantom-wallet.png",
+    type: "consumable",
+    effect: JSON.stringify({
+      type: "phantom_wallet",
+      fakeBalanceMax: 100,
+      description: "Displays fake balance (10-100) to attackers"
+    }),
+  },
+  {
+    name: "Nano-Spy Drone",
+    description: "Reveal the truth! Deploy during target scan to bypass Phantom Wallets and see the real balance. One-time use.",
+    price: 3000,
+    image: "/items/nano-spy-drone.png",
+    type: "consumable",
+    effect: JSON.stringify({
+      type: "nano_spy_drone",
+      bypassPhantom: true,
+      description: "See through Phantom Wallets during scan"
+    }),
+  },
 ];
 
 async function seedShop() {
