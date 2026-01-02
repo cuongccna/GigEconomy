@@ -7,7 +7,7 @@
 
 export const AFFILIATE_IDS = {
   binance: 'CPA_00FRB53AQ8',
-  bybit: 'YOUR_BYBIT_ID',
+  bybit: 'NZOPWR',
   bingx: 'FGVYPF',
   okx: 'YOUR_OKX_ID',
   mexc: 'YOUR_MEXC_ID',
