@@ -203,22 +203,33 @@ export default function NotificationCenter({ className }: NotificationCenterProp
         )}
       </button>
 
-      {/* Dropdown */}
+      {/* Notification Drawer (Full Screen Overlay) */}
       <AnimatePresence>
         {isOpen && (
-          <motion.div
-            initial={{ opacity: 0, y: -10, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -10, scale: 0.95 }}
-            transition={{ duration: 0.15 }}
-            className={cn(
-              "absolute right-0 top-12 w-80 max-h-[70vh]",
-              "bg-gray-900/95 backdrop-blur-xl",
-              "border border-white/10 rounded-2xl",
-              "shadow-[0_0_40px_rgba(0,0,0,0.5)]",
-              "overflow-hidden z-50"
-            )}
-          >
+          <>
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsOpen(false)}
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40"
+            />
+            
+            {/* Drawer Panel */}
+            <motion.div
+              initial={{ opacity: 0, y: -50 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -50 }}
+              transition={{ type: "spring", damping: 25, stiffness: 300 }}
+              className={cn(
+                "fixed left-4 right-4 top-4 max-h-[80vh]",
+                "bg-gray-900/98 backdrop-blur-xl",
+                "border border-white/10 rounded-2xl",
+                "shadow-[0_0_60px_rgba(0,0,0,0.8)]",
+                "overflow-hidden z-50"
+              )}
+            >
             {/* Header */}
             <div className="flex items-center justify-between p-4 border-b border-white/10">
               <h3 className="text-white font-bold">Notifications</h3>
@@ -329,6 +340,7 @@ export default function NotificationCenter({ className }: NotificationCenterProp
               </div>
             )}
           </motion.div>
+          </>
         )}
       </AnimatePresence>
     </div>

@@ -6,6 +6,11 @@ const ATTACK_COOLDOWN_MS = 60 * 60 * 1000; // 1 hour cooldown
 const STEAL_PERCENTAGE = 0.05; // 5% of defender's balance
 const LOSE_PENALTY = 100; // Fine when attacker loses
 const WIN_THRESHOLD = 50; // Roll > 50 = WIN
+const LOGIC_BOMB_PENALTY = 2000; // Penalty when stepping on Logic Bomb
+
+// Item names
+const STREAK_SHIELD = "Streak Shield";
+const LOGIC_BOMB = "Logic Bomb";
 
 // POST: Execute a PvP attack (Cyber Heist)
 export async function POST(request: NextRequest) {
@@ -65,14 +70,14 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Get defender with their shield inventory
+    // Get defender with their shield AND logic bomb inventory
     const defender = await prisma.user.findUnique({
       where: { id: targetId },
       include: {
         userItems: {
           include: { item: true },
           where: {
-            item: { name: "Streak Shield" },
+            item: { name: { in: [STREAK_SHIELD, LOGIC_BOMB] } },
             quantity: { gt: 0 },
           },
         },
@@ -102,21 +107,102 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if defender has a shield
-    const hasShield = defender.userItems.length > 0 && defender.userItems[0].quantity > 0;
+    // Check for items
+    const shieldItem = defender.userItems.find(ui => ui.item.name === STREAK_SHIELD);
+    const logicBombItem = defender.userItems.find(ui => ui.item.name === LOGIC_BOMB);
+    const hasShield = shieldItem && shieldItem.quantity > 0;
+    const hasLogicBomb = logicBombItem && logicBombItem.quantity > 0;
 
-    let result: "WIN" | "LOSE" | "SHIELDED";
+    let result: "WIN" | "LOSE" | "SHIELDED" | "COUNTER_ATTACK";
     let amountStolen = 0;
     let attackerBalanceChange = 0;
     let defenderBalanceChange = 0;
 
+    // ===== LOGIC BOMB CHECK (Cyber Mine) =====
+    if (hasLogicBomb) {
+      // Logic Bomb triggered! Attacker steps on a mine
+      result = "COUNTER_ATTACK";
+      
+      // Calculate penalty (attacker loses, defender gains)
+      attackerBalanceChange = -LOGIC_BOMB_PENALTY;
+      defenderBalanceChange = LOGIC_BOMB_PENALTY;
+
+      // Execute transaction
+      await prisma.$transaction([
+        // Consume one Logic Bomb from defender
+        prisma.userItem.update({
+          where: { id: logicBombItem!.id },
+          data: { quantity: { decrement: 1 } },
+        }),
+        // Deduct penalty from attacker
+        prisma.user.update({
+          where: { id: attacker.id },
+          data: {
+            balance: { increment: attackerBalanceChange },
+            lastHeistAt: now,
+          },
+        }),
+        // Add penalty to defender
+        prisma.user.update({
+          where: { id: defender.id },
+          data: { balance: { increment: defenderBalanceChange } },
+        }),
+        // Create battle log with COUNTER_ATTACK status
+        prisma.battleLog.create({
+          data: {
+            attackerId: attacker.id,
+            defenderId: defender.id,
+            amountStolen: LOGIC_BOMB_PENALTY, // Record the penalty amount
+            result: "COUNTER_ATTACK",
+          },
+        }),
+        // Notify attacker: You stepped on a mine!
+        prisma.notification.create({
+          data: {
+            userId: attacker.id,
+            type: "ATTACK",
+            message: `💣 You stepped on a Logic Bomb! Lost ${LOGIC_BOMB_PENALTY.toLocaleString()} $GIG to ${defender.username || `Agent-${defender.telegramId.toString().slice(-4)}`}!`,
+            data: JSON.stringify({
+              defenderId: defender.id,
+              defenderName: defender.username || `Agent-${defender.telegramId.toString().slice(-4)}`,
+              amount: LOGIC_BOMB_PENALTY,
+              result: "COUNTER_ATTACK",
+            }),
+          },
+        }),
+        // Notify defender: Your mine worked!
+        prisma.notification.create({
+          data: {
+            userId: defender.id,
+            type: "REWARD",
+            message: `💣 Your Logic Bomb exploded! ${attacker.username || `Agent-${attacker.telegramId.toString().slice(-4)}`} stepped on it! +${LOGIC_BOMB_PENALTY.toLocaleString()} $GIG`,
+            data: JSON.stringify({
+              attackerId: attacker.id,
+              attackerName: attacker.username || `Agent-${attacker.telegramId.toString().slice(-4)}`,
+              amount: LOGIC_BOMB_PENALTY,
+              result: "COUNTER_ATTACK",
+            }),
+          },
+        }),
+      ]);
+
+      return NextResponse.json({
+        success: true,
+        result: "COUNTER_ATTACK",
+        amount: LOGIC_BOMB_PENALTY,
+        message: `💣 BOOM! You stepped on a Logic Bomb! Lost ${LOGIC_BOMB_PENALTY.toLocaleString()} $GIG!`,
+        defenderName: defender.username || `Agent-${defender.telegramId.toString().slice(-4)}`,
+      });
+    }
+
+    // ===== SHIELD CHECK =====
     if (hasShield) {
       // SHIELDED: Defender's shield blocks the attack
       result = "SHIELDED";
       
       // Consume one shield from defender
       await prisma.userItem.update({
-        where: { id: defender.userItems[0].id },
+        where: { id: shieldItem!.id },
         data: { quantity: { decrement: 1 } },
       });
 
@@ -124,7 +210,7 @@ export async function POST(request: NextRequest) {
       attackerBalanceChange = -50;
       
     } else {
-      // Roll the dice (0-100)
+      // ===== NORMAL DICE ROLL =====
       const roll = Math.floor(Math.random() * 101);
       
       if (roll > WIN_THRESHOLD) {

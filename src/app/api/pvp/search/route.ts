@@ -4,10 +4,15 @@ import { prisma } from "@/lib/prisma";
 // Minimum balance required to be a target
 const MIN_TARGET_BALANCE = 1000;
 
+// Item names for PvP items
+const PHANTOM_WALLET = "Phantom Wallet";
+const NANO_SPY_DRONE = "Nano-Spy Drone";
+
 // GET: Find a random target for PvP attack
 export async function GET(request: NextRequest) {
   try {
     const telegramIdStr = request.headers.get("x-telegram-id");
+    const useDrone = request.nextUrl.searchParams.get("useDrone") === "true";
     
     if (!telegramIdStr) {
       return NextResponse.json(
@@ -18,10 +23,18 @@ export async function GET(request: NextRequest) {
 
     const telegramId = BigInt(telegramIdStr);
 
-    // Get current user
+    // Get current user with their inventory
     const currentUser = await prisma.user.findUnique({
       where: { telegramId },
-      select: { id: true },
+      select: { 
+        id: true,
+        userItems: {
+          include: { item: true },
+          where: {
+            quantity: { gt: 0 },
+          },
+        },
+      },
     });
 
     if (!currentUser) {
@@ -31,10 +44,23 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Find potential targets:
-    // - Not the current user
-    // - Has balance > MIN_TARGET_BALANCE
-    // - Not banned
+    // Check if attacker has Nano-Spy Drone (if requested)
+    let hasDrone = false;
+    let droneUserItem = null;
+    if (useDrone) {
+      droneUserItem = currentUser.userItems.find(
+        (ui) => ui.item.name === NANO_SPY_DRONE && ui.quantity > 0
+      );
+      if (!droneUserItem) {
+        return NextResponse.json({
+          success: false,
+          message: "You don't have a Nano-Spy Drone!",
+        }, { status: 400 });
+      }
+      hasDrone = true;
+    }
+
+    // Find potential targets with their inventory (to check for Phantom Wallet)
     const potentialTargets = await prisma.user.findMany({
       where: {
         id: { not: currentUser.id },
@@ -46,6 +72,12 @@ export async function GET(request: NextRequest) {
         username: true,
         telegramId: true,
         balance: true,
+        userItems: {
+          include: { item: true },
+          where: {
+            quantity: { gt: 0 },
+          },
+        },
       },
       take: 50, // Limit pool size for performance
     });
@@ -62,10 +94,32 @@ export async function GET(request: NextRequest) {
     const randomIndex = Math.floor(Math.random() * potentialTargets.length);
     const target = potentialTargets[randomIndex];
 
-    // Generate masked balance range for mystery
-    const balanceRange = getBalanceRange(target.balance);
+    // Check if target has Phantom Wallet
+    const hasPhantomWallet = target.userItems.some(
+      (ui) => ui.item.name === PHANTOM_WALLET && ui.quantity > 0
+    );
 
-    // Generate avatar placeholder (could be enhanced with actual avatars)
+    // Determine displayed balance
+    let displayedBalance = target.balance;
+    let balanceRange = getBalanceRange(target.balance);
+    let droneUsed = false;
+
+    if (hasPhantomWallet && !hasDrone) {
+      // Phantom Wallet active: show fake low balance
+      displayedBalance = Math.floor(Math.random() * 91) + 10; // 10-100
+      balanceRange = "10 - 100"; // Fake range
+    } else if (hasPhantomWallet && hasDrone) {
+      // Drone sees through Phantom Wallet: show real balance
+      // Consume the drone
+      await prisma.userItem.update({
+        where: { id: droneUserItem!.id },
+        data: { quantity: { decrement: 1 } },
+      });
+      droneUsed = true;
+      // displayedBalance stays as real balance
+    }
+
+    // Generate avatar
     const avatarUrl = `https://api.dicebear.com/7.x/pixel-art/svg?seed=${target.telegramId}`;
 
     return NextResponse.json({
@@ -74,9 +128,15 @@ export async function GET(request: NextRequest) {
         id: target.id,
         name: target.username || `Agent-${target.telegramId.toString().slice(-4)}`,
         avatar: avatarUrl,
-        balanceRange, // Masked balance
-        winChance: "50%", // Base win chance
+        balanceRange,
+        displayedBalance,
+        winChance: "50%",
+        hasPhantomWallet: hasPhantomWallet && !hasDrone, // Only reveal if not using drone
       },
+      droneUsed,
+      message: droneUsed 
+        ? "🛸 Drone deployed! Phantom Wallet bypassed - showing real balance." 
+        : undefined,
     });
   } catch (error) {
     console.error("PvP search error:", error);
