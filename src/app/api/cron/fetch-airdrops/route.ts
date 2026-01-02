@@ -13,26 +13,64 @@ interface FeedConfig {
   url: string;
   sourceName: string;
   isReddit?: boolean;
+  isMedium?: boolean;
 }
 
+// Only Reddit and Medium - Airdrops.io blocked by Cloudflare
 const FEEDS: FeedConfig[] = [
   {
-    url: 'https://airdrops.io/category/hot-airdrops/feed/',
-    sourceName: 'Airdrops.io (Hot)'
-  },
-  {
-    url: 'https://airdrops.io/category/latest-airdrops/feed/',
-    sourceName: 'Airdrops.io (Latest)'
-  },
-  {
     url: 'https://www.reddit.com/r/airdrops/new/.rss',
-    sourceName: 'Reddit Airdrops',
+    sourceName: 'Reddit r/airdrops',
     isReddit: true
+  },
+  {
+    url: 'https://www.reddit.com/r/CryptoAirdrop/new/.rss',
+    sourceName: 'Reddit r/CryptoAirdrop',
+    isReddit: true
+  },
+  {
+    url: 'https://medium.com/feed/tag/airdrop',
+    sourceName: 'Medium #airdrop',
+    isMedium: true
   }
 ];
 
-// ============ TASK PLATFORM DOMAINS ============
-const TASK_PLATFORMS = ['gleam.io', 'galxe.com', 'taskon.xyz', 'zealy.io', 'intract.io', 'layer3.xyz', 'crew3.xyz'];
+// ============ LINK EXTRACTION CONFIG ============
+// Priority domains - prefer these links
+const PRIORITY_DOMAINS = [
+  't.me',           // Telegram bots
+  'gleam.io',
+  'galxe.com', 
+  'taskon.xyz',
+  'zealy.io',
+  'intract.io',
+  'layer3.xyz',
+  'crew3.xyz',
+  'forms.gle',      // Google Forms
+  'docs.google.com' // Google Docs/Forms
+];
+
+// Blocked domains/patterns - never use these
+const BLOCKED_PATTERNS = [
+  'reddit.com',
+  'redd.it',
+  'preview.redd.it',
+  'external-preview.redd.it',
+  'i.redd.it',
+  'v.redd.it',
+  'imgur.com',
+  '.jpg',
+  '.jpeg', 
+  '.png',
+  '.gif',
+  '.webp',
+  '.mp4',
+  '.svg',
+  'youtube.com/watch',  // Video links not actionable
+  'twitter.com',        // Just discussions
+  'x.com',
+  'medium.com/@',       // Author pages, not tasks
+];
 
 // ============ SMART FILTER KEYWORDS ============
 const POSITIVE_KEYWORDS = [
@@ -40,12 +78,16 @@ const POSITIVE_KEYWORDS = [
   'gleam', 'galxe', 'taskon', 'quest', 'pool',
   'airdrop', 'giveaway', 'testnet', 'reward', 'earn',
   'free', 'bonus', 'whitelist', 'mint', 'staking',
-  'zealy', 'intract', 'layer3', 'crew3'
+  'zealy', 'intract', 'layer3', 'crew3',
+  // New keywords
+  'bot', 'start', 'app', 'mining', 'grass', 'blast',
+  'token', 'crypto', 'web3', 'defi', 'nft'
 ];
 
 const NEGATIVE_KEYWORDS = [
   'price analysis', 'market update', 'prediction', 'review', 'summary',
-  'scam', 'hack', 'rug', 'warning', 'avoid', 'fake', 'phishing'
+  'scam', 'hack', 'rug', 'warning', 'avoid', 'fake', 'phishing',
+  'beware', 'don\'t trust', 'is it legit'
 ];
 
 // ============ HELPER FUNCTIONS ============
@@ -57,11 +99,23 @@ function debug(...args: unknown[]) {
   }
 }
 
+// Check if URL is blocked
+function isBlockedUrl(url: string): boolean {
+  const lowerUrl = url.toLowerCase();
+  return BLOCKED_PATTERNS.some(pattern => lowerUrl.includes(pattern));
+}
+
+// Check if URL is a priority domain
+function isPriorityUrl(url: string): boolean {
+  const lowerUrl = url.toLowerCase();
+  return PRIORITY_DOMAINS.some(domain => lowerUrl.includes(domain));
+}
+
 // Check if title passes filter (relaxed for testing)
 function isActionable(title: string, hasTaskLink: boolean = false): boolean {
   const lowerTitle = title.toLowerCase();
   
-  // If we found a task platform link, be more lenient
+  // If we found a valid external link, be more lenient
   if (hasTaskLink) {
     const hasNegative = NEGATIVE_KEYWORDS.some(k => lowerTitle.includes(k));
     return !hasNegative; // Accept if no negative keywords
@@ -81,57 +135,72 @@ function decodeHtmlEntities(text: string): string {
     .replace(/&amp;/g, '&')
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
-    .replace(/&nbsp;/g, ' ');
+    .replace(/&#x27;/g, "'")
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&#(\d+);/g, (_, dec) => String.fromCharCode(dec));
 }
 
-// Extract task platform URL from content (handles HTML escaped content)
-function extractTaskPlatformUrl(rawContent: string): string | null {
+/**
+ * Extract the best external link from HTML content
+ * Priority: t.me > gleam/galxe > any valid https link
+ */
+function extractBestLink(rawContent: string): string | null {
   if (!rawContent) return null;
   
   // Decode HTML entities first
   const content = decodeHtmlEntities(rawContent);
   
-  debug('    [extractTaskPlatformUrl] Content length:', content.length);
-  debug('    [extractTaskPlatformUrl] Content preview:', content.substring(0, 300));
+  debug('    [extractBestLink] Content length:', content.length);
   
-  // Step 1: Check if any task platform domain exists in content
-  const foundPlatform = TASK_PLATFORMS.find(domain => 
-    content.toLowerCase().includes(domain)
-  );
-  
-  if (!foundPlatform) {
-    debug('    [extractTaskPlatformUrl] No task platform domain found');
-    return null;
-  }
-  
-  debug('    [extractTaskPlatformUrl] Found platform:', foundPlatform);
-  
-  // Step 2: Try to extract full URL with various patterns
+  // Extract all URLs from content using multiple patterns
   const urlPatterns = [
-    // Standard https URL
-    new RegExp(`https?://(?:www\\.)?${foundPlatform.replace('.', '\\.')}[^\\s<>"'\\)\\]]*`, 'i'),
-    // URL without protocol (some content strips it)
-    new RegExp(`(?:www\\.)?${foundPlatform.replace('.', '\\.')}[^\\s<>"'\\)\\]]*`, 'i'),
+    /href=["']([^"']+)["']/gi,           // href="url"
+    /https?:\/\/[^\s<>"')\]]+/gi,        // Raw URLs
   ];
   
+  const allUrls: string[] = [];
+  
   for (const pattern of urlPatterns) {
-    const match = content.match(pattern);
-    if (match) {
-      let url = match[0];
-      // Ensure https prefix
-      if (!url.startsWith('http')) {
-        url = 'https://' + url;
+    let match;
+    while ((match = pattern.exec(content)) !== null) {
+      // For href pattern, get captured group; for raw URL, get full match
+      const url = match[1] || match[0];
+      if (url && url.startsWith('http')) {
+        // Clean the URL
+        const cleanUrl = url.replace(/[.,;:!?\)\]'"]+$/, '');
+        allUrls.push(cleanUrl);
       }
-      // Clean trailing punctuation
-      url = url.replace(/[.,;:!?\)\]]+$/, '');
-      debug('    [extractTaskPlatformUrl] Extracted URL:', url);
-      return url;
     }
   }
   
-  // Step 3: Fallback - just return domain link if we know it exists
-  debug('    [extractTaskPlatformUrl] Using fallback domain URL');
-  return `https://${foundPlatform}`;
+  // Remove duplicates
+  const uniqueUrls = Array.from(new Set(allUrls));
+  
+  debug('    [extractBestLink] Found', uniqueUrls.length, 'unique URLs');
+  if (uniqueUrls.length > 0) {
+    debug('    [extractBestLink] Sample URLs:', uniqueUrls.slice(0, 5));
+  }
+  
+  // Filter out blocked URLs
+  const validUrls = uniqueUrls.filter(url => !isBlockedUrl(url));
+  debug('    [extractBestLink] After filtering blocked:', validUrls.length, 'URLs');
+  
+  if (validUrls.length === 0) {
+    debug('    [extractBestLink] ❌ No valid URLs found');
+    return null;
+  }
+  
+  // First, try to find a priority domain URL
+  const priorityUrl = validUrls.find(url => isPriorityUrl(url));
+  if (priorityUrl) {
+    debug('    [extractBestLink] ✅ [Priority Link Found]:', priorityUrl);
+    return priorityUrl;
+  }
+  
+  // Fallback: use the first valid non-blocked URL
+  const fallbackUrl = validUrls[0];
+  debug('    [extractBestLink] ✅ [Fallback Link Found]:', fallbackUrl);
+  return fallbackUrl;
 }
 
 // Clean and format the title
@@ -266,12 +335,13 @@ export async function GET(request: NextRequest) {
 
     let totalNewTasks = 0;
     const errors: string[] = [];
-    const feedStats: { source: string; processed: number; created: number }[] = [];
+    const feedStats: { source: string; processed: number; created: number; skippedNoLink?: number; skippedFilter?: number; skippedDuplicate?: number }[] = [];
+    const debugSamples: { title: string; link: string | null; source: string }[] = [];
     const proxyInfo = proxyUrl ? `via proxy ${proxyHost}:${proxyPort}` : 'direct (no proxy)';
 
     // Process each feed source
     for (const feedConfig of FEEDS) {
-      const { url: feedUrl, sourceName, isReddit } = feedConfig;
+      const { url: feedUrl, sourceName, isReddit, isMedium } = feedConfig;
       let processedCount = 0;
       let createdCount = 0;
       let skippedNoLink = 0;
@@ -348,11 +418,11 @@ export async function GET(request: NextRequest) {
           
           debug(`\n--- [Item ${processedCount}] Checking: ${item.title.slice(0, 60)}...`);
 
-          // Determine the task link FIRST (for Reddit)
+          // Determine the task link
           let taskLink: string | null = null;
           
-          if (isReddit) {
-            // Reddit: Extract Gleam/Galxe/TaskOn URL from content
+          if (isReddit || isMedium) {
+            // Reddit/Medium: Extract best external link from content
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const itemAny = item as any;
             const rawContent = itemAny['content:encoded'] 
@@ -360,21 +430,32 @@ export async function GET(request: NextRequest) {
               || item.contentSnippet 
               || '';
             
-            debug(`    Content fields available: content:encoded=${!!itemAny['content:encoded']}, content=${!!itemAny['content']}, snippet=${!!item.contentSnippet}`);
+            debug(`    Content fields: content:encoded=${!!itemAny['content:encoded']}, content=${!!itemAny['content']}, snippet=${!!item.contentSnippet}`);
+            debug(`    Content length: ${rawContent.length} chars`);
             
-            taskLink = extractTaskPlatformUrl(rawContent);
+            // Use the new extractBestLink function
+            taskLink = extractBestLink(rawContent);
+            
+            // Collect debug samples
+            if (debugSamples.length < 10) {
+              debugSamples.push({
+                title: item.title.slice(0, 60),
+                link: taskLink,
+                source: sourceName
+              });
+            }
             
             if (!taskLink) {
-              debug(`    ❌ No task platform URL found`);
+              debug(`    ❌ No valid external link found`);
               skippedNoLink++;
               continue;
             }
             
-            debug(`    ✅ Found task link: ${taskLink}`);
+            console.log(`    [Link Found]: ${taskLink}`);
             
-            // For Reddit with valid task link, use relaxed filter
+            // For Reddit/Medium with valid link, use relaxed filter
             if (!isActionable(item.title, true)) {
-              debug(`    ❌ Failed keyword filter (with link)`);
+              debug(`    ❌ Failed keyword filter (negative keywords found)`);
               skippedFilter++;
               continue;
             }
@@ -408,6 +489,13 @@ export async function GET(request: NextRequest) {
           // Clean the title and extract reward
           const cleanedTitle = cleanTitle(item.title);
           const reward = extractReward(item.title);
+          
+          // Determine icon based on source/link
+          let icon = 'other';
+          if (isReddit) icon = 'community';
+          else if (isMedium) icon = 'article';
+          else if (taskLink.includes('t.me')) icon = 'telegram';
+          else if (taskLink.includes('gleam.io') || taskLink.includes('galxe.com')) icon = 'quest';
 
           // Create new task (Draft mode for manual review)
           await prisma.task.create({
@@ -416,7 +504,7 @@ export async function GET(request: NextRequest) {
               description: item.contentSnippet?.slice(0, 500) || cleanedTitle,
               reward,
               link: taskLink,
-              icon: isReddit ? "community" : "other",
+              icon,
               type: "airdrop",
               isActive: false, // Draft mode for admin review
             },
@@ -428,7 +516,14 @@ export async function GET(request: NextRequest) {
           totalNewTasks++;
         }
         
-        feedStats.push({ source: sourceName, processed: processedCount, created: createdCount });
+        feedStats.push({ 
+          source: sourceName, 
+          processed: processedCount, 
+          created: createdCount,
+          skippedNoLink,
+          skippedFilter,
+          skippedDuplicate
+        });
         console.log(`\n📊 [${sourceName}] Summary:`);
         console.log(`   - Total items: ${processedCount}`);
         console.log(`   - Created: ${createdCount}`);
@@ -454,6 +549,7 @@ export async function GET(request: NextRequest) {
       success: true,
       totalNewTasks,
       feedStats,
+      debugSamples: DEBUG_MODE && debugSamples.length > 0 ? debugSamples : undefined,
       errors: errors.length > 0 ? errors : undefined,
       proxyUsed: proxyUrl ? `${proxyHost}:${proxyPort}` : null,
       message: totalNewTasks > 0
