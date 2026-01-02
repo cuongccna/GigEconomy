@@ -71,8 +71,8 @@ export default function Home() {
   
   // Daily check-in state
   const [isCheckInOpen, setIsCheckInOpen] = useState(false);
-  const [streak, setStreak] = useState(0);
   const [hasClaimedToday, setHasClaimedToday] = useState(false);
+  const [streak, setStreak] = useState(0);
 
   // Filter & Search state
   const [searchQuery, setSearchQuery] = useState("");
@@ -90,7 +90,7 @@ export default function Home() {
   // User rank state
   const [userRank, setUserRank] = useState<number | null>(null);
 
-  // Fetch check-in status
+  // Fetch check-in status and auto-open if can check in
   const fetchCheckInStatus = useCallback(async () => {
     try {
       // Get user ID from Telegram WebApp
@@ -100,15 +100,19 @@ export default function Home() {
         return;
       }
 
-      const response = await fetch("/api/checkin", {
+      const response = await fetch("/api/daily-checkin/status", {
         headers: {
           "x-telegram-id": telegramId.toString(),
         },
       });
       const data = await response.json();
       if (data.success) {
-        setStreak(data.streak);
-        setHasClaimedToday(data.hasClaimedToday);
+        setHasClaimedToday(!data.canCheckIn);
+        setStreak(data.currentStreak);
+        // Auto-open modal if user can check in
+        if (data.canCheckIn) {
+          setIsCheckInOpen(true);
+        }
       }
     } catch (error) {
       console.error("Failed to fetch check-in status:", error);
@@ -258,32 +262,12 @@ export default function Home() {
     fetchUserRank();
   }, [fetchCheckInStatus, fetchUserRank]);
 
-  // Handle daily check-in claim
-  const handleCheckInClaim = async () => {
-    try {
-      // Get user ID from Telegram WebApp
-      const telegramId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
-      
-      if (!telegramId) {
-        return;
-      }
-
-      const response = await fetch("/api/checkin", { 
-        method: "POST",
-        headers: {
-          "x-telegram-id": telegramId.toString(),
-        },
-      });
-      const data = await response.json();
-      
-      if (data.success) {
-        setUserBalance(data.newBalance);
-        setStreak(data.streak);
-        setHasClaimedToday(true);
-      }
-    } catch (error) {
-      console.error("Failed to claim check-in:", error);
-    }
+  // Handle balance update from check-in drawer
+  const handleBalanceUpdate = (newBalance: number) => {
+    setUserBalance(newBalance);
+    setHasClaimedToday(true);
+    // Refetch status to update streak display
+    fetchCheckInStatus();
   };
 
   const handleTaskClaimed = (taskId: string, newBalance: number) => {
@@ -575,9 +559,7 @@ export default function Home() {
       <DailyCheckInDrawer
         isOpen={isCheckInOpen}
         onClose={() => setIsCheckInOpen(false)}
-        currentStreak={streak}
-        hasClaimedToday={hasClaimedToday}
-        onClaim={handleCheckInClaim}
+        onBalanceUpdate={handleBalanceUpdate}
       />
 
       {/* Bottom Navigation */}

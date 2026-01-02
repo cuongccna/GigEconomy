@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Home, Wallet, User, Disc3, ShoppingBag, Trophy } from "lucide-react";
+import { Home, Wallet, Disc3, ShoppingBag, Trophy, Swords } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-type NavItem = "earn" | "spin" | "shop" | "leaderboard" | "friends" | "wallet" | "profile";
+type NavItem = "earn" | "spin" | "pvp" | "shop" | "leaderboard" | "friends" | "wallet" | "profile";
 
 interface NavItemProps {
   icon: React.ReactNode;
@@ -41,10 +41,10 @@ export function BottomNav({ activeTab = "earn" }: BottomNavProps) {
   const navItems: { id: NavItem; icon: React.ReactNode; label: string; href: string }[] = [
     { id: "earn", icon: <Home size={18} />, label: "Earn", href: "/" },
     { id: "spin", icon: <Disc3 size={18} />, label: "Spin", href: "/spin" },
+    { id: "pvp", icon: <Swords size={18} />, label: "PvP", href: "/pvp" },
     { id: "shop", icon: <ShoppingBag size={18} />, label: "Shop", href: "/shop" },
     { id: "leaderboard", icon: <Trophy size={18} />, label: "Ranks", href: "/leaderboard" },
     { id: "wallet", icon: <Wallet size={18} />, label: "Wallet", href: "/wallet" },
-    { id: "profile", icon: <User size={18} />, label: "Profile", href: "/profile" },
   ];
 
   return (

@@ -39,10 +39,15 @@ model User {
   // Luck bonus (from Lucky Charm)
   spinLuckBonus    Float     @default(0)
   
+  // PvP Heist fields
+  lastHeistAt      DateTime?
+  
   // Relations
-  userTasks    UserTask[]
-  spinHistory  SpinHistory[]
-  userItems    UserItem[]
+  userTasks        UserTask[]
+  spinHistory      SpinHistory[]
+  userItems        UserItem[]
+  attacksMade      BattleLog[]  @relation("Attacker")
+  attacksReceived  BattleLog[]  @relation("Defender")
   
   @@map("users")
 }
@@ -137,4 +142,23 @@ model UserItem {
   
   @@unique([userId, itemId])
   @@map("user_items")
+}
+
+// ==================== PVP BATTLE SYSTEM ====================
+
+model BattleLog {
+  id           String   @id @default(uuid())
+  attackerId   String
+  defenderId   String
+  amountStolen Float    @default(0)
+  result       String   // WIN, LOSE, SHIELDED
+  createdAt    DateTime @default(now())
+  
+  // Relations
+  attacker User @relation("Attacker", fields: [attackerId], references: [id], onDelete: Cascade)
+  defender User @relation("Defender", fields: [defenderId], references: [id], onDelete: Cascade)
+  
+  @@index([attackerId])
+  @@index([defenderId])
+  @@map("battle_logs")
 }
