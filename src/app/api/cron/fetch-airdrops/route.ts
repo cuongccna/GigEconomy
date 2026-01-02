@@ -3,7 +3,12 @@ import { prisma } from "@/lib/prisma";
 import Parser from "rss-parser";
 import { SocksProxyAgent } from "socks-proxy-agent";
 
-// ============ MULTI-SOURCE FEED CONFIGURATION ============
+// ============ CONFIGURATION ============
+const DEBUG_MODE = true; // Set to false in production
+
+// Full Chrome User-Agent to bypass WAFs
+const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+
 interface FeedConfig {
   url: string;
   sourceName: string;
@@ -26,8 +31,10 @@ const FEEDS: FeedConfig[] = [
   }
 ];
 
+// ============ TASK PLATFORM DOMAINS ============
+const TASK_PLATFORMS = ['gleam.io', 'galxe.com', 'taskon.xyz', 'zealy.io', 'intract.io', 'layer3.xyz', 'crew3.xyz'];
+
 // ============ SMART FILTER KEYWORDS ============
-// POSITIVE KEYWORDS - Must contain at least one for actionable tasks
 const POSITIVE_KEYWORDS = [
   'claim', 'join', 'participate', 'register', 'waitlist',
   'gleam', 'galxe', 'taskon', 'quest', 'pool',
@@ -36,42 +43,95 @@ const POSITIVE_KEYWORDS = [
   'zealy', 'intract', 'layer3', 'crew3'
 ];
 
-// NEGATIVE KEYWORDS - Must NOT contain any (filters out news/analysis/spam)
 const NEGATIVE_KEYWORDS = [
-  'price analysis', 'market', 'prediction', 'review', 'summary',
-  'why', 'what is', 'report', 'scam', 'hack', 'rug',
-  'overview', 'recap', 'inflows', 'outflows', 'volume',
-  'how to', 'guide', 'tutorial', 'explained', 'news',
-  'update', 'announcement', 'milestone', 'reaches',
-  'dominates', 'leads', 'captures', 'record', 'historic',
-  'warning', 'avoid', 'fake', 'phishing', 'suspicious'
+  'price analysis', 'market update', 'prediction', 'review', 'summary',
+  'scam', 'hack', 'rug', 'warning', 'avoid', 'fake', 'phishing'
 ];
 
-// Regex to extract task platform URLs from Reddit content
-const TASK_PLATFORM_REGEX = /https?:\/\/(?:www\.)?(gleam\.io|galxe\.com|taskon\.xyz|zealy\.io|intract\.io|layer3\.xyz|crew3\.xyz)[^\s<>"')]+/gi;
+// ============ HELPER FUNCTIONS ============
 
-// Check if title is an actionable task (not news/analysis)
-function isActionable(title: string): boolean {
+// Debug logger
+function debug(...args: unknown[]) {
+  if (DEBUG_MODE) {
+    console.log(...args);
+  }
+}
+
+// Check if title passes filter (relaxed for testing)
+function isActionable(title: string, hasTaskLink: boolean = false): boolean {
   const lowerTitle = title.toLowerCase();
+  
+  // If we found a task platform link, be more lenient
+  if (hasTaskLink) {
+    const hasNegative = NEGATIVE_KEYWORDS.some(k => lowerTitle.includes(k));
+    return !hasNegative; // Accept if no negative keywords
+  }
+  
+  // Standard check: must have positive, must not have negative
   const hasPositive = POSITIVE_KEYWORDS.some(k => lowerTitle.includes(k));
   const hasNegative = NEGATIVE_KEYWORDS.some(k => lowerTitle.includes(k));
   return hasPositive && !hasNegative;
 }
 
-// Extract task platform URL from Reddit content (Gleam, Galxe, etc.)
-function extractTaskPlatformUrl(content: string): string | null {
-  if (!content) return null;
+// Decode HTML entities (Reddit content uses &lt; &gt; &amp; etc.)
+function decodeHtmlEntities(text: string): string {
+  return text
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, ' ');
+}
+
+// Extract task platform URL from content (handles HTML escaped content)
+function extractTaskPlatformUrl(rawContent: string): string | null {
+  if (!rawContent) return null;
   
-  // Reset regex lastIndex for global matching
-  TASK_PLATFORM_REGEX.lastIndex = 0;
-  const match = TASK_PLATFORM_REGEX.exec(content);
+  // Decode HTML entities first
+  const content = decodeHtmlEntities(rawContent);
   
-  if (match) {
-    // Clean the URL (remove trailing punctuation)
-    return match[0].replace(/[.,;:!?)]+$/, '');
+  debug('    [extractTaskPlatformUrl] Content length:', content.length);
+  debug('    [extractTaskPlatformUrl] Content preview:', content.substring(0, 300));
+  
+  // Step 1: Check if any task platform domain exists in content
+  const foundPlatform = TASK_PLATFORMS.find(domain => 
+    content.toLowerCase().includes(domain)
+  );
+  
+  if (!foundPlatform) {
+    debug('    [extractTaskPlatformUrl] No task platform domain found');
+    return null;
   }
   
-  return null;
+  debug('    [extractTaskPlatformUrl] Found platform:', foundPlatform);
+  
+  // Step 2: Try to extract full URL with various patterns
+  const urlPatterns = [
+    // Standard https URL
+    new RegExp(`https?://(?:www\\.)?${foundPlatform.replace('.', '\\.')}[^\\s<>"'\\)\\]]*`, 'i'),
+    // URL without protocol (some content strips it)
+    new RegExp(`(?:www\\.)?${foundPlatform.replace('.', '\\.')}[^\\s<>"'\\)\\]]*`, 'i'),
+  ];
+  
+  for (const pattern of urlPatterns) {
+    const match = content.match(pattern);
+    if (match) {
+      let url = match[0];
+      // Ensure https prefix
+      if (!url.startsWith('http')) {
+        url = 'https://' + url;
+      }
+      // Clean trailing punctuation
+      url = url.replace(/[.,;:!?\)\]]+$/, '');
+      debug('    [extractTaskPlatformUrl] Extracted URL:', url);
+      return url;
+    }
+  }
+  
+  // Step 3: Fallback - just return domain link if we know it exists
+  debug('    [extractTaskPlatformUrl] Using fallback domain URL');
+  return `https://${foundPlatform}`;
 }
 
 // Clean and format the title
@@ -214,14 +274,21 @@ export async function GET(request: NextRequest) {
       const { url: feedUrl, sourceName, isReddit } = feedConfig;
       let processedCount = 0;
       let createdCount = 0;
+      let skippedNoLink = 0;
+      let skippedFilter = 0;
+      let skippedDuplicate = 0;
       
       try {
-        console.log(`\n📡 [${sourceName}] Fetching ${proxyInfo}...`);
+        console.log(`\n${'='.repeat(50)}`);
+        console.log(`📡 [${sourceName}] Fetching ${proxyInfo}...`);
+        console.log(`   URL: ${feedUrl}`);
         
         // Fetch RSS XML through proxy using native fetch with agent
         const fetchOptions: RequestInit & { agent?: unknown } = {
           headers: {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            "User-Agent": USER_AGENT,
+            "Accept": "application/rss+xml, application/xml, text/xml, */*",
+            "Accept-Language": "en-US,en;q=0.9",
           },
         };
         
@@ -231,54 +298,101 @@ export async function GET(request: NextRequest) {
         }
         
         const response = await fetch(feedUrl, fetchOptions);
+        
+        console.log(`   HTTP Status: ${response.status} ${response.statusText}`);
+        console.log(`   Content-Type: ${response.headers.get('content-type')}`);
 
         if (!response.ok) {
           errors.push(`[${sourceName}] HTTP ${response.status}`);
           continue;
         }
 
-        console.log(`✅ [${sourceName}] Feed fetched successfully`);
-        const xmlText = await response.text();
+        const responseText = await response.text();
+        
+        // Debug: Check if response is HTML (Cloudflare block) or XML
+        const isLikelyXml = responseText.trim().startsWith('<?xml') || responseText.trim().startsWith('<rss') || responseText.trim().startsWith('<feed');
+        console.log(`   Response length: ${responseText.length} chars`);
+        console.log(`   Looks like XML: ${isLikelyXml ? 'YES ✅' : 'NO ❌ (likely Cloudflare/HTML)'}`);
+        
+        if (!isLikelyXml) {
+          // Log first 300 chars to debug Cloudflare blocks
+          console.log(`   ⚠️ RAW RESPONSE START:`);
+          console.log(`   ${responseText.substring(0, 300).replace(/\n/g, '\\n')}`);
+          errors.push(`[${sourceName}] Response is not XML (Cloudflare block?)`);
+          feedStats.push({ source: sourceName, processed: 0, created: 0 });
+          continue;
+        }
 
         // Parse the XML using rss-parser
-        const feed = await parser.parseString(xmlText);
+        let feed;
+        try {
+          feed = await parser.parseString(responseText);
+        } catch (parseError) {
+          console.log(`   ❌ XML Parse Error: ${parseError instanceof Error ? parseError.message : 'Unknown'}`);
+          console.log(`   RAW RESPONSE START: ${responseText.substring(0, 200)}`);
+          errors.push(`[${sourceName}] XML parse error`);
+          feedStats.push({ source: sourceName, processed: 0, created: 0 });
+          continue;
+        }
+        
+        console.log(`   ✅ Parsed ${feed.items?.length || 0} items from feed`);
 
         // Process each item in the feed
         for (const item of feed.items || []) {
           processedCount++;
           
-          if (!item.title) continue;
-
-          // Apply Smart Filter on title
-          if (!isActionable(item.title)) {
-            console.log(`⏭️ [${sourceName}] Skipping: ${item.title.slice(0, 50)}...`);
+          if (!item.title) {
+            debug(`   [Item ${processedCount}] No title, skipping`);
             continue;
           }
+          
+          debug(`\n--- [Item ${processedCount}] Checking: ${item.title.slice(0, 60)}...`);
 
-          // Determine the task link
+          // Determine the task link FIRST (for Reddit)
           let taskLink: string | null = null;
           
           if (isReddit) {
             // Reddit: Extract Gleam/Galxe/TaskOn URL from content
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const itemAny = item as any;
-            const content = itemAny['content:encoded'] 
+            const rawContent = itemAny['content:encoded'] 
               || itemAny['content'] 
               || item.contentSnippet 
               || '';
             
-            taskLink = extractTaskPlatformUrl(content);
+            debug(`    Content fields available: content:encoded=${!!itemAny['content:encoded']}, content=${!!itemAny['content']}, snippet=${!!item.contentSnippet}`);
+            
+            taskLink = extractTaskPlatformUrl(rawContent);
             
             if (!taskLink) {
-              console.log(`⏭️ [${sourceName}] No task platform URL found: ${item.title.slice(0, 40)}...`);
-              continue; // Skip Reddit posts without external task links
+              debug(`    ❌ No task platform URL found`);
+              skippedNoLink++;
+              continue;
+            }
+            
+            debug(`    ✅ Found task link: ${taskLink}`);
+            
+            // For Reddit with valid task link, use relaxed filter
+            if (!isActionable(item.title, true)) {
+              debug(`    ❌ Failed keyword filter (with link)`);
+              skippedFilter++;
+              continue;
             }
           } else {
-            // Standard RSS: Use item link
+            // Standard RSS: Apply filter first, then use item link
+            if (!isActionable(item.title, false)) {
+              debug(`    ❌ Failed keyword filter`);
+              skippedFilter++;
+              continue;
+            }
             taskLink = item.link || null;
           }
 
-          if (!taskLink) continue;
+          if (!taskLink) {
+            debug(`    ❌ No link available`);
+            skippedNoLink++;
+            continue;
+          }
 
           // Check if task already exists (by link)
           const existingTask = await prisma.task.findFirst({
@@ -286,7 +400,8 @@ export async function GET(request: NextRequest) {
           });
 
           if (existingTask) {
-            console.log(`⏭️ [${sourceName}] Duplicate: ${item.title.slice(0, 40)}...`);
+            debug(`    ⏭️ Duplicate in DB`);
+            skippedDuplicate++;
             continue;
           }
 
@@ -308,12 +423,18 @@ export async function GET(request: NextRequest) {
           });
 
           console.log(`✨ [${sourceName}] Created: ${cleanedTitle} (+${reward} PTS)`);
+          console.log(`   Link: ${taskLink}`);
           createdCount++;
           totalNewTasks++;
         }
         
         feedStats.push({ source: sourceName, processed: processedCount, created: createdCount });
-        console.log(`📊 [${sourceName}] Processed ${processedCount} items. Created ${createdCount} new tasks.`);
+        console.log(`\n📊 [${sourceName}] Summary:`);
+        console.log(`   - Total items: ${processedCount}`);
+        console.log(`   - Created: ${createdCount}`);
+        console.log(`   - Skipped (no link): ${skippedNoLink}`);
+        console.log(`   - Skipped (filter): ${skippedFilter}`);
+        console.log(`   - Skipped (duplicate): ${skippedDuplicate}`);
         
       } catch (feedError) {
         const errorMsg = feedError instanceof Error ? feedError.message : "Unknown error";
