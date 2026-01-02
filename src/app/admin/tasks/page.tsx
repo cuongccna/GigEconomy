@@ -14,6 +14,8 @@ import {
   Loader2,
   AlertTriangle,
   Sparkles,
+  Eye,
+  ExternalLink,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -345,16 +347,149 @@ function DeleteConfirmModal({
   );
 }
 
+// Task Detail Modal
+function TaskDetailModal({
+  isOpen,
+  task,
+  onClose,
+  onDelete,
+}: {
+  isOpen: boolean;
+  task: Task | null;
+  onClose: () => void;
+  onDelete: (task: Task) => void;
+}) {
+  if (!isOpen || !task) return null;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ scale: 0.9, y: 20 }}
+        animate={{ scale: 1, y: 0 }}
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-lg bg-gray-900 rounded-2xl border border-gray-700 overflow-hidden"
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between p-4 border-b border-gray-700">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-gray-700/50 flex items-center justify-center">
+              {iconMap[task.icon] || iconMap.other}
+            </div>
+            <div>
+              <h3 className="font-bold text-white">Task Details</h3>
+              <span className={`text-xs px-2 py-0.5 rounded-full ${
+                task.isActive
+                  ? "bg-green-500/10 text-green-400 border border-green-500/30"
+                  : "bg-gray-600/30 text-gray-400 border border-gray-600"
+              }`}>
+                {task.isActive ? "Active" : "Inactive"}
+              </span>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
+          >
+            <X size={20} />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="p-4 space-y-4 max-h-[60vh] overflow-y-auto">
+          {/* Title */}
+          <div>
+            <label className="text-xs text-gray-500 uppercase tracking-wide">Title</label>
+            <p className="text-white font-medium mt-1">{task.title}</p>
+          </div>
+
+          {/* Link */}
+          <div>
+            <label className="text-xs text-gray-500 uppercase tracking-wide">Link</label>
+            {task.link ? (
+              <a
+                href={task.link}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 mt-1 text-cyan-400 hover:text-cyan-300 transition-colors break-all"
+              >
+                <ExternalLink size={16} className="flex-shrink-0" />
+                <span className="underline">{task.link}</span>
+              </a>
+            ) : (
+              <p className="text-gray-500 italic mt-1">No link</p>
+            )}
+          </div>
+
+          {/* Reward & Type */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs text-gray-500 uppercase tracking-wide">Reward</label>
+              <p className="text-neon-green font-bold mt-1">+{task.reward} $GIG</p>
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 uppercase tracking-wide">Type</label>
+              <p className="text-white capitalize mt-1">{task.type}</p>
+            </div>
+          </div>
+
+          {/* Description */}
+          <div>
+            <label className="text-xs text-gray-500 uppercase tracking-wide">Description</label>
+            <div className="mt-1 p-3 bg-gray-800/50 rounded-lg border border-gray-700 text-gray-300 text-sm whitespace-pre-wrap max-h-40 overflow-y-auto">
+              {task.description || <span className="text-gray-500 italic">No description</span>}
+            </div>
+          </div>
+
+          {/* Created At */}
+          <div>
+            <label className="text-xs text-gray-500 uppercase tracking-wide">Created</label>
+            <p className="text-gray-400 text-sm mt-1">
+              {new Date(task.createdAt).toLocaleString()}
+            </p>
+          </div>
+        </div>
+
+        {/* Footer Actions */}
+        <div className="flex gap-3 p-4 border-t border-gray-700 bg-gray-900/50">
+          <button
+            onClick={onClose}
+            className="flex-1 py-3 bg-gray-800 text-white font-medium rounded-xl hover:bg-gray-700 transition-colors"
+          >
+            Close
+          </button>
+          <button
+            onClick={() => {
+              onClose();
+              onDelete(task);
+            }}
+            className="flex items-center justify-center gap-2 px-6 py-3 bg-red-600 text-white font-medium rounded-xl hover:bg-red-500 transition-colors"
+          >
+            <Trash2 size={18} />
+            Delete
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
 // Task Row Component
 function TaskRow({
   task,
   onToggle,
   onDelete,
+  onView,
   isToggling,
 }: {
   task: Task;
   onToggle: (taskId: string, isActive: boolean) => void;
   onDelete: (task: Task) => void;
+  onView: (task: Task) => void;
   isToggling: boolean;
 }) {
   return (
@@ -395,6 +530,15 @@ function TaskRow({
         disabled={isToggling}
       />
 
+      {/* View */}
+      <button
+        onClick={() => onView(task)}
+        className="p-2 rounded-lg text-gray-400 hover:text-cyan-400 hover:bg-cyan-500/10 transition-colors"
+        title="View Details"
+      >
+        <Eye size={18} />
+      </button>
+
       {/* Delete */}
       <button
         onClick={() => onDelete(task)}
@@ -412,6 +556,10 @@ export default function AdminTasksPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [viewModal, setViewModal] = useState<{ isOpen: boolean; task: Task | null }>({
+    isOpen: false,
+    task: null,
+  });
   const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; task: Task | null }>({
     isOpen: false,
     task: null,
@@ -627,6 +775,7 @@ export default function AdminTasksPage() {
               task={task}
               onToggle={handleToggle}
               onDelete={(t) => setDeleteModal({ isOpen: true, task: t })}
+              onView={(t) => setViewModal({ isOpen: true, task: t })}
               isToggling={togglingTaskId === task.id}
             />
           ))
@@ -647,6 +796,17 @@ export default function AdminTasksPage() {
         onConfirm={handleDelete}
         onCancel={() => setDeleteModal({ isOpen: false, task: null })}
         isDeleting={isDeleting}
+      />
+
+      {/* Task Detail Modal */}
+      <TaskDetailModal
+        isOpen={viewModal.isOpen}
+        task={viewModal.task}
+        onClose={() => setViewModal({ isOpen: false, task: null })}
+        onDelete={(t) => {
+          setViewModal({ isOpen: false, task: null });
+          setDeleteModal({ isOpen: true, task: t });
+        }}
       />
     </div>
   );

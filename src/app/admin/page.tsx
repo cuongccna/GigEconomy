@@ -11,6 +11,7 @@ import {
   Gift,
   Zap,
   UserPlus,
+  Megaphone,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -185,7 +186,7 @@ export default function AdminDashboard() {
           <QuickAction href="/admin/users" label="Manage Users" icon={<Users size={20} />} />
           <QuickAction href="/admin/tasks" label="Edit Tasks" icon={<Gift size={20} />} />
           <QuickAction href="/admin/shop" label="Shop Items" icon={<ShoppingBag size={20} />} />
-          <QuickAction href="/admin/settings" label="Settings" icon={<Activity size={20} />} />
+          <QuickAction href="/admin/broadcast" label="Broadcast" icon={<Megaphone size={20} />} />
         </div>
       </div>
 
