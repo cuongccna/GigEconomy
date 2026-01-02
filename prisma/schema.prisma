@@ -41,13 +41,16 @@ model User {
   
   // PvP Heist fields
   lastHeistAt      DateTime?
+  pvpWins          Int       @default(0)
+  pvpTotalStolen   Float     @default(0)
   
   // Relations
   userTasks        UserTask[]
   spinHistory      SpinHistory[]
   userItems        UserItem[]
-  attacksMade      BattleLog[]  @relation("Attacker")
-  attacksReceived  BattleLog[]  @relation("Defender")
+  attacksMade      BattleLog[]     @relation("Attacker")
+  attacksReceived  BattleLog[]     @relation("Defender")
+  notifications    Notification[]
   
   @@map("users")
 }
@@ -152,6 +155,7 @@ model BattleLog {
   defenderId   String
   amountStolen Float    @default(0)
   result       String   // WIN, LOSE, SHIELDED
+  isRevenge    Boolean  @default(false)
   createdAt    DateTime @default(now())
   
   // Relations
@@ -161,4 +165,23 @@ model BattleLog {
   @@index([attackerId])
   @@index([defenderId])
   @@map("battle_logs")
+}
+
+// ==================== NOTIFICATION SYSTEM ====================
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String   // Receiver
+  type      String   // ATTACK, SYSTEM, REWARD
+  message   String
+  data      String?  // JSON - store attackerId, amount, etc.
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([isRead])
+  @@map("notifications")
 }

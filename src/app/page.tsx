@@ -16,6 +16,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { BottomNav, DailyCheckInDrawer } from "@/components/ui";
+import NotificationCenter from "@/components/NotificationCenter";
 import { cn } from "@/lib/utils";
 
 interface UserData {
@@ -189,6 +190,9 @@ export default function HomePage() {
             </p>
           </div>
         </Link>
+
+        {/* Notification Bell */}
+        <NotificationCenter />
 
         {/* Balance */}
         <div className="text-right">

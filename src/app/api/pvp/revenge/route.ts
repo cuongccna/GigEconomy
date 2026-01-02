@@ -1,13 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-// Constants
-const ATTACK_COOLDOWN_MS = 60 * 60 * 1000; // 1 hour cooldown
-const STEAL_PERCENTAGE = 0.05; // 5% of defender's balance
+// Constants for Revenge Attack
+const REVENGE_COOLDOWN_MS = 30 * 60 * 1000; // 30 min cooldown (shorter than normal)
+const REVENGE_STEAL_PERCENTAGE = 0.08; // 8% of target's balance (bonus!)
 const LOSE_PENALTY = 100; // Fine when attacker loses
-const WIN_THRESHOLD = 50; // Roll > 50 = WIN
+const WIN_THRESHOLD = 45; // Roll > 45 = WIN (slightly easier for revenge)
 
-// POST: Execute a PvP attack (Cyber Heist)
+/**
+ * POST /api/pvp/revenge
+ * 
+ * Execute a revenge attack against someone who attacked you.
+ * Bonus: Higher steal %, lower cooldown, easier win threshold.
+ */
 export async function POST(request: NextRequest) {
   try {
     const telegramIdStr = request.headers.get("x-telegram-id");
@@ -21,7 +26,7 @@ export async function POST(request: NextRequest) {
 
     const telegramId = BigInt(telegramIdStr);
     const body = await request.json();
-    const { targetId } = body;
+    const { targetId, notificationId } = body;
 
     if (!targetId) {
       return NextResponse.json(
@@ -30,7 +35,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get attacker
+    // Get attacker (the person seeking revenge)
     const attacker = await prisma.user.findUnique({
       where: { telegramId },
     });
@@ -50,22 +55,40 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check cooldown
+    // Verify this is a valid revenge attack
+    // Check if target has attacked the current user before
+    const previousAttack = await prisma.battleLog.findFirst({
+      where: {
+        attackerId: targetId,
+        defenderId: attacker.id,
+        result: { in: ["WIN", "SHIELDED"] },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    if (!previousAttack) {
+      return NextResponse.json({
+        success: false,
+        message: "This player hasn't attacked you. Use normal attack instead.",
+      }, { status: 400 });
+    }
+
+    // Check cooldown (shorter for revenge)
     const now = new Date();
     if (attacker.lastHeistAt) {
       const timeSinceLastHeist = now.getTime() - attacker.lastHeistAt.getTime();
-      if (timeSinceLastHeist < ATTACK_COOLDOWN_MS) {
-        const remainingMs = ATTACK_COOLDOWN_MS - timeSinceLastHeist;
+      if (timeSinceLastHeist < REVENGE_COOLDOWN_MS) {
+        const remainingMs = REVENGE_COOLDOWN_MS - timeSinceLastHeist;
         const remainingMinutes = Math.ceil(remainingMs / (60 * 1000));
         return NextResponse.json({
           success: false,
-          message: `Cooldown active! Wait ${remainingMinutes} minutes.`,
+          message: `Revenge cooldown! Wait ${remainingMinutes} minutes.`,
           cooldownRemaining: remainingMs,
         }, { status: 429 });
       }
     }
 
-    // Get defender with their shield inventory
+    // Get defender (the original attacker) with their shield inventory
     const defender = await prisma.user.findUnique({
       where: { id: targetId },
       include: {
@@ -120,17 +143,17 @@ export async function POST(request: NextRequest) {
         data: { quantity: { decrement: 1 } },
       });
 
-      // Small penalty for attacker (optional)
+      // Small penalty for attacker
       attackerBalanceChange = -50;
       
     } else {
-      // Roll the dice (0-100)
+      // Roll the dice (0-100) - easier threshold for revenge
       const roll = Math.floor(Math.random() * 101);
       
       if (roll > WIN_THRESHOLD) {
-        // WIN: Steal 5% of defender's balance
+        // WIN: Steal 8% of defender's balance (bonus for revenge!)
         result = "WIN";
-        amountStolen = Math.floor(defender.balance * STEAL_PERCENTAGE);
+        amountStolen = Math.floor(defender.balance * REVENGE_STEAL_PERCENTAGE);
         attackerBalanceChange = amountStolen;
         defenderBalanceChange = -amountStolen;
       } else {
@@ -163,16 +186,17 @@ export async function POST(request: NextRequest) {
             }),
           ]
         : []),
-      // Create battle log
+      // Create battle log with revenge flag
       prisma.battleLog.create({
         data: {
           attackerId: attacker.id,
           defenderId: defender.id,
           amountStolen,
           result,
+          isRevenge: true,
         },
       }),
-      // Create notification for defender (on WIN or SHIELDED)
+      // Create notification for defender
       ...(result === "WIN" || result === "SHIELDED"
         ? [
             prisma.notification.create({
@@ -181,17 +205,26 @@ export async function POST(request: NextRequest) {
                 type: "ATTACK",
                 message:
                   result === "WIN"
-                    ? `🚨 ${attacker.username || `Agent-${attacker.telegramId.toString().slice(-4)}`} stole ${amountStolen.toLocaleString()} $GIG from you!`
-                    : `🛡️ ${attacker.username || `Agent-${attacker.telegramId.toString().slice(-4)}`} tried to attack you but your Shield blocked it!`,
+                    ? `⚔️ REVENGE! ${attacker.username || `Agent-${attacker.telegramId.toString().slice(-4)}`} got revenge and stole ${amountStolen.toLocaleString()} $GIG from you!`
+                    : `🛡️ ${attacker.username || `Agent-${attacker.telegramId.toString().slice(-4)}`} tried to get revenge but your Shield blocked it!`,
                 data: JSON.stringify({
                   attackerId: attacker.id,
                   attackerTelegramId: attacker.telegramId.toString(),
                   attackerName: attacker.username || `Agent-${attacker.telegramId.toString().slice(-4)}`,
                   amount: amountStolen,
                   result,
-                  battleLogId: undefined, // Will be set after creation
+                  isRevenge: true,
                 }),
               },
+            }),
+          ]
+        : []),
+      // Mark the notification as read if provided
+      ...(notificationId
+        ? [
+            prisma.notification.update({
+              where: { id: notificationId },
+              data: { isRead: true },
             }),
           ]
         : []),
@@ -201,13 +234,13 @@ export async function POST(request: NextRequest) {
     let message: string;
     switch (result) {
       case "WIN":
-        message = `💰 Heist successful! You stole ${amountStolen.toLocaleString()} $GIG!`;
+        message = `⚔️ REVENGE SUCCESSFUL! You stole ${amountStolen.toLocaleString()} $GIG! (+3% bonus)`;
         break;
       case "LOSE":
-        message = `❌ Heist failed! You were caught and fined ${LOSE_PENALTY} $GIG.`;
+        message = `❌ Revenge failed! You were caught and fined ${LOSE_PENALTY} $GIG.`;
         break;
       case "SHIELDED":
-        message = `🛡️ Target had a Shield! Your attack was blocked.`;
+        message = `🛡️ Target had a Shield! Your revenge was blocked.`;
         break;
     }
 
@@ -216,10 +249,11 @@ export async function POST(request: NextRequest) {
       result,
       amount: Math.abs(attackerBalanceChange),
       message,
+      isRevenge: true,
       defenderName: defender.username || `Agent-${defender.telegramId.toString().slice(-4)}`,
     });
   } catch (error) {
-    console.error("PvP attack error:", error);
+    console.error("PvP revenge error:", error);
     return NextResponse.json(
       { success: false, message: "Internal server error" },
       { status: 500 }
