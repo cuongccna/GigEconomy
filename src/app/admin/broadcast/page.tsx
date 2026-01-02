@@ -14,6 +14,7 @@ import {
   MessageSquare
 } from "lucide-react";
 import Link from "next/link";
+import { useAuth } from "@/hooks/useAuth";
 
 interface BroadcastStats {
   total: number;
@@ -29,6 +30,7 @@ interface BroadcastResult {
 }
 
 export default function BroadcastPage() {
+  const { user } = useAuth();
   const [stats, setStats] = useState<BroadcastStats | null>(null);
   const [, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
@@ -44,10 +46,11 @@ export default function BroadcastPage() {
 
   // Fetch stats on mount
   const fetchStats = useCallback(async () => {
+    if (!user?.id) return;
+    
     try {
-      const telegramId = localStorage.getItem("telegramId") || "";
       const res = await fetch("/api/admin/broadcast", {
-        headers: { "x-telegram-id": telegramId }
+        headers: { "x-telegram-id": user.id.toString() }
       });
       const data = await res.json();
       if (data.success) {
@@ -58,7 +61,7 @@ export default function BroadcastPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [user?.id]);
 
   useEffect(() => {
     fetchStats();
@@ -70,17 +73,21 @@ export default function BroadcastPage() {
       return;
     }
 
+    if (!user?.id) {
+      setError("Not authenticated");
+      return;
+    }
+
     setError(null);
     setResult(null);
     setSending(true);
 
     try {
-      const telegramId = localStorage.getItem("telegramId") || "";
       const res = await fetch("/api/admin/broadcast", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-telegram-id": telegramId
+          "x-telegram-id": user.id.toString()
         },
         body: JSON.stringify({
           message: message.trim(),
