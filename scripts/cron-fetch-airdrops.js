@@ -8,6 +8,9 @@
  * Or via PM2 cron in ecosystem.config.js
  */
 
+// Load environment variables from .env file
+require('dotenv').config();
+
 const https = require('https');
 const http = require('http');
 

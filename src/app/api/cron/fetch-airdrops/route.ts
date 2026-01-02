@@ -56,22 +56,24 @@ export async function GET(request: NextRequest) {
     const proxyPass = process.env.PROXY_PASS;
 
     if (!proxyHost || !proxyPort) {
-      return NextResponse.json(
-        { success: false, error: "Proxy configuration missing" },
-        { status: 500 }
-      );
+      console.log("⚠️ Proxy configuration missing, will fetch directly without proxy");
     }
 
     // Build proxy URL with or without authentication
-    let proxyUrl: string;
-    if (proxyUser && proxyPass) {
-      proxyUrl = `socks5://${proxyUser}:${proxyPass}@${proxyHost}:${proxyPort}`;
-    } else {
-      proxyUrl = `socks5://${proxyHost}:${proxyPort}`;
+    let proxyUrl: string | null = null;
+    let agent = null;
+    
+    if (proxyHost && proxyPort) {
+      if (proxyUser && proxyPass) {
+        proxyUrl = `socks5://${proxyUser}:****@${proxyHost}:${proxyPort}`;
+        const fullProxyUrl = `socks5://${proxyUser}:${proxyPass}@${proxyHost}:${proxyPort}`;
+        agent = new SocksProxyAgent(fullProxyUrl);
+      } else {
+        proxyUrl = `socks5://${proxyHost}:${proxyPort}`;
+        agent = new SocksProxyAgent(proxyUrl);
+      }
+      console.log(`🔒 Using SOCKS5 Proxy: ${proxyUrl}`);
     }
-
-    // Create SOCKS5 proxy agent
-    const agent = new SocksProxyAgent(proxyUrl);
 
     // Initialize RSS parser
     const parser = new Parser();
@@ -79,24 +81,33 @@ export async function GET(request: NextRequest) {
     let totalNewTasks = 0;
     const errors: string[] = [];
     const createdTasks: string[] = [];
+    const proxyInfo = proxyUrl ? `via proxy ${proxyHost}:${proxyPort}` : 'direct (no proxy)';
 
     // Process each RSS feed
     for (const feedUrl of RSS_FEEDS) {
       try {
+        console.log(`📡 Fetching ${feedUrl} ${proxyInfo}...`);
+        
         // Fetch RSS XML through proxy using native fetch with agent
-        const response = await fetch(feedUrl, {
-          // @ts-expect-error - Node.js fetch supports agent option
-          agent,
+        const fetchOptions: RequestInit & { agent?: unknown } = {
           headers: {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
           },
-        });
+        };
+        
+        // Add proxy agent if configured
+        if (agent) {
+          fetchOptions.agent = agent;
+        }
+        
+        const response = await fetch(feedUrl, fetchOptions);
 
         if (!response.ok) {
           errors.push(`Failed to fetch ${feedUrl}: ${response.status}`);
           continue;
         }
 
+        console.log(`✅ Successfully fetched ${feedUrl}`);
         const xmlText = await response.text();
 
         // Parse the XML using rss-parser
@@ -144,6 +155,7 @@ export async function GET(request: NextRequest) {
       newTasks: totalNewTasks,
       createdTasks: createdTasks.length > 0 ? createdTasks : undefined,
       errors: errors.length > 0 ? errors : undefined,
+      proxyUsed: proxyUrl ? `${proxyHost}:${proxyPort}` : null,
       message: totalNewTasks > 0
         ? `Successfully created ${totalNewTasks} new airdrop task(s)`
         : "No new airdrops found",
