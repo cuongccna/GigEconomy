@@ -42,8 +42,8 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Only allow specific username
-    const isAllowed = user.role === "ADMIN" && user.username === "San_Keo_Tinh_Hoa";
+    // Check if user has ADMIN role
+    const isAllowed = user.role === "ADMIN";
 
     return NextResponse.json({
       isAdmin: isAllowed,
