@@ -13,6 +13,7 @@ import {
   Link as LinkIcon,
   Loader2,
   AlertTriangle,
+  Sparkles,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -417,6 +418,8 @@ export default function AdminTasksPage() {
   });
   const [togglingTaskId, setTogglingTaskId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isAutoGenerating, setIsAutoGenerating] = useState(false);
+  const [autoGenResult, setAutoGenResult] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   // Fetch tasks
   const fetchTasks = async () => {
@@ -443,6 +446,39 @@ export default function AdminTasksPage() {
       fetchTasks();
     }
   }, [user]);
+
+  // Auto-generate affiliate tasks
+  const handleAutoGenerate = async () => {
+    if (!user?.id) return;
+    setIsAutoGenerating(true);
+    setAutoGenResult(null);
+
+    try {
+      const response = await fetch("/api/admin/tasks/auto-generate", {
+        method: "POST",
+        headers: {
+          "x-telegram-id": user.id.toString(),
+        },
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        setAutoGenResult({ message: data.message, type: 'success' });
+        if (data.createdCount > 0) {
+          fetchTasks(); // Refresh the task list
+        }
+      } else {
+        setAutoGenResult({ message: data.error || "Failed to auto-generate tasks", type: 'error' });
+      }
+    } catch (error) {
+      console.error("Failed to auto-generate tasks:", error);
+      setAutoGenResult({ message: "Network error. Please try again.", type: 'error' });
+    } finally {
+      setIsAutoGenerating(false);
+      // Clear the message after 5 seconds
+      setTimeout(() => setAutoGenResult(null), 5000);
+    }
+  };
 
   // Toggle task active status
   const handleToggle = async (taskId: string, isActive: boolean) => {
@@ -510,14 +546,46 @@ export default function AdminTasksPage() {
           <h1 className="text-2xl font-bold text-white mb-1">MISSION CONTROL</h1>
           <p className="text-gray-400">Manage tasks and missions for users</p>
         </div>
-        <button
-          onClick={() => setIsCreateModalOpen(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-red-600 to-red-500 text-white font-medium rounded-xl hover:from-red-500 hover:to-red-400 transition-all"
-        >
-          <Plus size={20} />
-          New Mission
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleAutoGenerate}
+            disabled={isAutoGenerating}
+            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-purple-500 text-white font-medium rounded-xl hover:from-purple-500 hover:to-purple-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isAutoGenerating ? (
+              <Loader2 size={20} className="animate-spin" />
+            ) : (
+              <Sparkles size={20} />
+            )}
+            Auto-Generate Affiliates
+          </button>
+          <button
+            onClick={() => setIsCreateModalOpen(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-red-600 to-red-500 text-white font-medium rounded-xl hover:from-red-500 hover:to-red-400 transition-all"
+          >
+            <Plus size={20} />
+            New Mission
+          </button>
+        </div>
       </div>
+
+      {/* Auto-Generate Result Message */}
+      <AnimatePresence>
+        {autoGenResult && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className={`mb-6 p-4 rounded-xl border ${
+              autoGenResult.type === 'success'
+                ? 'bg-green-500/10 border-green-500/30 text-green-400'
+                : 'bg-red-500/10 border-red-500/30 text-red-400'
+            }`}
+          >
+            {autoGenResult.message}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Quick Stats */}
       <div className="grid grid-cols-3 gap-4 mb-6">
