@@ -52,6 +52,7 @@ model User {
   attacksReceived  BattleLog[]     @relation("Defender")
   notifications    Notification[]
   withdrawals      Withdrawal[]
+  payments         PaymentLog[]
   
   @@map("users")
 }
@@ -206,4 +207,23 @@ model Withdrawal {
   @@index([userId])
   @@index([status])
   @@map("withdrawals")
+}
+
+// ==================== PAYMENT SYSTEM (Telegram Stars) ====================
+
+model PaymentLog {
+  id              String   @id @default(uuid())
+  userId          String
+  telegramPaymentId String @unique // Telegram payment charge ID
+  packageId       String   // Package identifier (starter_pack, vip_miner, etc.)
+  starsAmount     Int      // Amount in Telegram Stars
+  status          String   @default("COMPLETED") // COMPLETED, REFUNDED
+  createdAt       DateTime @default(now())
+  
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([packageId])
+  @@map("payment_logs")
 }

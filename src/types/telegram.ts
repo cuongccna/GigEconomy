@@ -21,6 +21,7 @@ export interface TelegramWebApp {
     notificationOccurred: (type: "error" | "success" | "warning") => void;
     selectionChanged: () => void;
   };
+  openInvoice?: (url: string, callback?: (status: "paid" | "cancelled" | "failed" | "pending") => void) => void;
 }
 
 // Adsgram AdController type declarations

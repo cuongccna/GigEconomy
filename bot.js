@@ -1,4 +1,5 @@
 const TelegramBot = require("node-telegram-bot-api");
+const { PrismaClient } = require("@prisma/client");
 require("dotenv").config();
 
 // =====================================================
@@ -9,6 +10,64 @@ const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
 const WEBAPP_URL = process.env.WEBAPP_URL || "https://dilink.io.vn";
 const COMMUNITY_URL = process.env.COMMUNITY_URL || "https://t.me/+ZVtj_Ye2gqViYzE1";
 const CHANNEL_URL = process.env.CHANNEL_URL || "https://t.me/+ZVtj_Ye2gqViYzE1";
+
+// Initialize Prisma for payment handling
+const prisma = new PrismaClient();
+
+// Stars Packages Config (mirrors starsPackages.ts)
+const STARS_PACKAGES = [
+  {
+    id: "starter_pack",
+    title: "🚀 Starter Kit",
+    price: 50,
+    content: { gig: 10000, items: [{ name: "Nano Spy Drone", quantity: 1 }] },
+  },
+  {
+    id: "heist_bundle",
+    title: "⚔️ Heist Bundle",
+    price: 100,
+    content: { gig: 25000, items: [{ name: "Heist Shield", quantity: 2 }, { name: "Logic Bomb", quantity: 1 }] },
+  },
+  {
+    id: "vip_miner",
+    title: "⛏️ VIP Mining Rig",
+    price: 150,
+    content: { gig: 15000, effects: [{ type: "DOUBLE_FARMING", duration: 168 }] },
+  },
+  {
+    id: "lucky_bundle",
+    title: "🎰 Lucky Spinner",
+    price: 75,
+    content: { gig: 5000, items: [{ name: "Energy Drink", quantity: 5 }, { name: "Lucky Charm", quantity: 2 }] },
+  },
+  {
+    id: "whale_pack",
+    title: "🐋 Whale Pack",
+    price: 500,
+    content: { 
+      gig: 150000, 
+      items: [
+        { name: "Heist Shield", quantity: 5 },
+        { name: "Logic Bomb", quantity: 3 },
+        { name: "Phantom Wallet", quantity: 2 },
+        { name: "Nano Spy Drone", quantity: 2 },
+        { name: "Energy Drink", quantity: 10 },
+      ] 
+    },
+  },
+  {
+    id: "tokens_small",
+    title: "💰 Token Boost",
+    price: 25,
+    content: { gig: 5000 },
+  },
+  {
+    id: "tokens_medium",
+    title: "💎 Token Vault",
+    price: 200,
+    content: { gig: 60000 },
+  },
+];
 
 if (!BOT_TOKEN) {
   console.error("❌ TELEGRAM_BOT_TOKEN is required in .env file!");
@@ -466,6 +525,205 @@ bot.on("callback_query", async (query) => {
 
     default:
       break;
+  }
+});
+
+// =====================================================
+// Telegram Stars Payment Handlers
+// =====================================================
+
+// Pre-checkout Query - Must answer within 10 seconds
+bot.on("pre_checkout_query", async (query) => {
+  try {
+    console.log("📦 Pre-checkout query received:", query.id);
+    
+    // Always approve the pre-checkout
+    await bot.answerPreCheckoutQuery(query.id, true);
+    console.log("✅ Pre-checkout approved");
+  } catch (error) {
+    console.error("Pre-checkout error:", error);
+    try {
+      await bot.answerPreCheckoutQuery(query.id, false, {
+        error_message: "Payment processing error. Please try again.",
+      });
+    } catch (e) {
+      console.error("Failed to reject pre-checkout:", e);
+    }
+  }
+});
+
+// Successful Payment - Grant rewards
+bot.on("message", async (msg) => {
+  if (!msg.successful_payment) return;
+
+  const payment = msg.successful_payment;
+  const telegramId = msg.from?.id;
+
+  console.log("💳 Payment received:", {
+    telegramId,
+    amount: payment.total_amount,
+    currency: payment.currency,
+    payload: payment.invoice_payload,
+  });
+
+  try {
+    // Parse payload
+    let payload;
+    try {
+      payload = JSON.parse(payment.invoice_payload);
+    } catch {
+      payload = { packageId: payment.invoice_payload };
+    }
+
+    const packageId = payload.packageId;
+    const pkg = STARS_PACKAGES.find((p) => p.id === packageId);
+
+    if (!pkg) {
+      console.error("Unknown package:", packageId);
+      await bot.sendMessage(
+        msg.chat.id,
+        "❌ Error processing payment. Please contact support."
+      );
+      return;
+    }
+
+    // Find or create user
+    let user = await prisma.user.findUnique({
+      where: { telegramId: BigInt(telegramId) },
+    });
+
+    if (!user) {
+      user = await prisma.user.create({
+        data: {
+          telegramId: BigInt(telegramId),
+          username: msg.from?.username || null,
+          balance: 0,
+        },
+      });
+    }
+
+    // Log payment
+    await prisma.paymentLog.create({
+      data: {
+        userId: user.id,
+        telegramPaymentId: payment.telegram_payment_charge_id,
+        packageId: packageId,
+        starsAmount: payment.total_amount,
+      },
+    });
+
+    // Grant rewards
+    let rewardSummary = [];
+
+    // Add $GIG tokens
+    if (pkg.content.gig) {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { balance: { increment: pkg.content.gig } },
+      });
+      rewardSummary.push(`💰 ${pkg.content.gig.toLocaleString()} $GIG`);
+    }
+
+    // Add items
+    if (pkg.content.items) {
+      for (const item of pkg.content.items) {
+        // Find item in shop
+        const shopItem = await prisma.shopItem.findFirst({
+          where: { name: item.name },
+        });
+
+        if (shopItem) {
+          // Add or update user item
+          const existingItem = await prisma.userItem.findFirst({
+            where: { userId: user.id, itemId: shopItem.id },
+          });
+
+          if (existingItem) {
+            await prisma.userItem.update({
+              where: { id: existingItem.id },
+              data: { quantity: { increment: item.quantity } },
+            });
+          } else {
+            await prisma.userItem.create({
+              data: {
+                userId: user.id,
+                itemId: shopItem.id,
+                quantity: item.quantity,
+              },
+            });
+          }
+          rewardSummary.push(`📦 ${item.quantity}x ${item.name}`);
+        }
+      }
+    }
+
+    // Apply effects (like double farming)
+    if (pkg.content.effects) {
+      for (const effect of pkg.content.effects) {
+        if (effect.type === "DOUBLE_FARMING") {
+          // Double farming rate for duration
+          await prisma.user.update({
+            where: { id: user.id },
+            data: { farmingRate: 1.0 }, // Double the base 0.5 rate
+          });
+          rewardSummary.push(`⛏️ 2x Mining Rate (${effect.duration / 24} days)`);
+        }
+      }
+    }
+
+    // Create notification
+    await prisma.notification.create({
+      data: {
+        userId: user.id,
+        type: "PAYMENT_SUCCESS",
+        message: `🎉 Thank you for your purchase! ${pkg.title} rewards have been added to your account.`,
+        data: JSON.stringify({
+          packageId,
+          rewards: rewardSummary,
+        }),
+      },
+    });
+
+    // Send confirmation message
+    const confirmationMessage = `
+🎉 *Payment Successful\\!* 🎉
+
+━━━━━━━━━━━━━━━━━━━━
+📦 *Package:* ${pkg.title.replace(/[!.*_\-=]/g, '\\$&')}
+⭐ *Paid:* ${payment.total_amount} Stars
+
+*Rewards Added:*
+${rewardSummary.map((r) => `✅ ${r.replace(/[!.*_\-=]/g, '\\$&')}`).join("\n")}
+━━━━━━━━━━━━━━━━━━━━
+
+🚀 *Enjoy your rewards, Agent\\!*
+`;
+
+    await bot.sendMessage(msg.chat.id, confirmationMessage, {
+      parse_mode: "MarkdownV2",
+      reply_markup: {
+        inline_keyboard: [
+          [
+            {
+              text: "🎮 Open App",
+              web_app: { url: WEBAPP_URL },
+            },
+          ],
+        ],
+      },
+    });
+
+    console.log("✅ Payment processed successfully:", {
+      userId: user.id,
+      packageId,
+      rewards: rewardSummary,
+    });
+  } catch (error) {
+    console.error("Payment processing error:", error);
+    await bot.sendMessage(
+      msg.chat.id,
+      "❌ Error processing payment rewards. Please contact support with your payment ID."
+    );
   }
 });
 

@@ -14,11 +14,14 @@ import {
   Loader2,
   Package,
   Play,
+  Crown,
+  Star,
 } from "lucide-react";
 import { BottomNav } from "@/components/ui";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import confetti from "canvas-confetti";
+import PremiumShop from "@/components/PremiumShop";
 
 // Types
 interface ItemEffect {
@@ -86,6 +89,7 @@ export default function ShopPage() {
   const [isUsingItem, setIsUsingItem] = useState<string | null>(null);
   const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [showInventory, setShowInventory] = useState(false);
+  const [showPremiumShop, setShowPremiumShop] = useState(false);
 
   // Fetch shop data
   const fetchShop = useCallback(async () => {
@@ -281,6 +285,30 @@ export default function ShopPage() {
         </div>
         <p className="text-white/50 text-sm">Upgrade your gear, Agent.</p>
       </motion.div>
+
+      {/* Premium Shop Banner */}
+      <motion.button
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        onClick={() => setShowPremiumShop(true)}
+        className="w-full mb-4 p-4 rounded-xl bg-gradient-to-r from-yellow-600/30 via-yellow-500/20 to-orange-600/30 border border-yellow-500/40 flex items-center justify-between hover:border-yellow-500/60 transition-all group"
+      >
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-yellow-500 to-orange-500 flex items-center justify-center">
+            <Crown size={20} className="text-white" />
+          </div>
+          <div className="text-left">
+            <p className="text-white font-bold text-sm">Premium Shop</p>
+            <p className="text-yellow-400/80 text-xs flex items-center gap-1">
+              <Star size={10} fill="currentColor" />
+              Pay with Telegram Stars
+            </p>
+          </div>
+        </div>
+        <div className="px-3 py-1.5 bg-gradient-to-r from-yellow-500 to-orange-500 rounded-lg text-black text-xs font-bold group-hover:shadow-lg group-hover:shadow-yellow-500/30 transition-all">
+          OPEN
+        </div>
+      </motion.button>
 
       {/* Balance - Sticky */}
       <motion.div
@@ -603,6 +631,12 @@ export default function ShopPage() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Premium Shop Modal */}
+      <PremiumShop 
+        isOpen={showPremiumShop} 
+        onClose={() => setShowPremiumShop(false)} 
+      />
 
       <BottomNav activeTab="home" />
     </div>
