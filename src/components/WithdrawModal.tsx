@@ -95,14 +95,13 @@ export default function WithdrawModal({
     setError(null);
 
     try {
-      // Prepare transaction
+      // Prepare transaction - Note: Don't include empty payload, it causes validation error
       const transaction = {
         validUntil: Math.floor(Date.now() / 1000) + 5 * 60, // 5 minutes from now
         messages: [
           {
             address: ADMIN_WALLET_ADDRESS,
             amount: WITHDRAWAL_FEE_NANO,
-            payload: "", // Optional: could add comment like "Withdrawal fee"
           },
         ],
       };
