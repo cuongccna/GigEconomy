@@ -593,6 +593,7 @@ export default function AdminTasksPage() {
     if (user?.id) {
       fetchTasks();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   // Auto-generate affiliate tasks

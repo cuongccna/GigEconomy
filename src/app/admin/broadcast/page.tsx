@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
+import Image from "next/image";
 import { 
   Send, 
   Image as ImageIcon, 
@@ -271,12 +272,15 @@ export default function BroadcastPage() {
           <div className="bg-gray-900 border border-gray-700 rounded-xl p-4">
             <p className="text-xs text-gray-400 mb-2">Preview:</p>
             {imageUrl && (
-              <img 
-                src={imageUrl} 
-                alt="Preview" 
-                className="w-full h-40 object-cover rounded-lg mb-3"
-                onError={(e) => (e.currentTarget.style.display = 'none')}
-              />
+              <div className="relative w-full h-40 mb-3">
+                <Image 
+                  src={imageUrl} 
+                  alt="Preview" 
+                  fill
+                  className="object-cover rounded-lg"
+                  unoptimized
+                />
+              </div>
             )}
             <div 
               className="text-sm whitespace-pre-wrap"

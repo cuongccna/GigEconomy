@@ -51,6 +51,7 @@ model User {
   attacksMade      BattleLog[]     @relation("Attacker")
   attacksReceived  BattleLog[]     @relation("Defender")
   notifications    Notification[]
+  withdrawals      Withdrawal[]
   
   @@map("users")
 }
@@ -184,4 +185,25 @@ model Notification {
   @@index([userId])
   @@index([isRead])
   @@map("notifications")
+}
+
+// ==================== WITHDRAWAL SYSTEM ====================
+
+model Withdrawal {
+  id            String   @id @default(uuid())
+  userId        String
+  amount        Float    // Amount of $GIG to withdraw
+  walletAddress String   // User's TON wallet address
+  txHash        String   @unique // User's TON transaction hash (gas payment)
+  status        String   @default("PENDING") // PENDING, PROCESSING, COMPLETED, FAILED
+  adminNotes    String?  // Notes from admin (failure reason, etc.)
+  processedAt   DateTime?
+  createdAt     DateTime @default(now())
+  
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([status])
+  @@map("withdrawals")
 }

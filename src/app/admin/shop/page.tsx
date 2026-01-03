@@ -653,6 +653,7 @@ export default function AdminShopPage() {
     if (user?.id) {
       fetchItems();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   // Stats

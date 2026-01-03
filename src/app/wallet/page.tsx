@@ -1,43 +1,50 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import { Gem, Copy, Check, ArrowDownToLine } from "lucide-react";
 import { useTonWallet, TonConnectButton } from "@tonconnect/ui-react";
 import { BottomNav } from "@/components/ui";
 import { useAuth } from "@/hooks/useAuth";
+import WithdrawModal from "@/components/WithdrawModal";
 
 export default function WalletPage() {
   const { user } = useAuth();
   const wallet = useTonWallet();
   const [copied, setCopied] = useState(false);
   const [userBalance, setUserBalance] = useState<number>(0);
+  const [isWithdrawOpen, setIsWithdrawOpen] = useState(false);
   const MIN_WITHDRAW = 100000;
 
   // Fetch user balance
-  useEffect(() => {
-    const fetchBalance = async () => {
-      if (!user?.id) return;
-      
-      try {
-        const response = await fetch("/api/tasks", {
-          headers: {
-            "x-telegram-id": user.id.toString(),
-          },
-        });
-        
-        if (response.ok) {
-          const data = await response.json();
-          // Ensure userBalance is a number, default to 0
-          setUserBalance(typeof data.userBalance === 'number' ? data.userBalance : 0);
-        }
-      } catch (error) {
-        console.error("Failed to fetch balance:", error);
-      }
-    };
+  const fetchBalance = useCallback(async () => {
+    if (!user?.id) return;
     
-    fetchBalance();
+    try {
+      const response = await fetch("/api/tasks", {
+        headers: {
+          "x-telegram-id": user.id.toString(),
+        },
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        // Ensure userBalance is a number, default to 0
+        setUserBalance(typeof data.userBalance === 'number' ? data.userBalance : 0);
+      }
+    } catch (error) {
+      console.error("Failed to fetch balance:", error);
+    }
   }, [user]);
+
+  useEffect(() => {
+    fetchBalance();
+  }, [fetchBalance]);
+
+  // Handle withdrawal success
+  const handleWithdrawSuccess = (newBalance: number) => {
+    setUserBalance(newBalance);
+  };
 
   // Format address to short version
   const formatAddress = (address: string) => {
@@ -230,6 +237,7 @@ export default function WalletPage() {
         className="px-4"
       >
         <button
+          onClick={() => setIsWithdrawOpen(true)}
           disabled={userBalance < MIN_WITHDRAW}
           className={`w-full py-4 px-6 rounded-2xl flex items-center justify-center gap-3 transition-all duration-300 ${
             userBalance >= MIN_WITHDRAW
@@ -258,6 +266,14 @@ export default function WalletPage() {
           </div>
         )}
       </motion.div>
+
+      {/* Withdraw Modal */}
+      <WithdrawModal
+        isOpen={isWithdrawOpen}
+        onClose={() => setIsWithdrawOpen(false)}
+        balance={userBalance}
+        onSuccess={handleWithdrawSuccess}
+      />
 
       {/* Bottom Navigation */}
       <BottomNav activeTab="wallet" />
