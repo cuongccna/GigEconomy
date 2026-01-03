@@ -138,7 +138,7 @@ bot.onText(/\/help/, async (msg) => {
 
 🔍 *Scout* \\- Find targets
 💥 *Attack* \\- Steal 5\\-15% of balance
-🛡️ *Shield* \\- Active = Protected
+🛡️ *Shield* \\- Active \\= Protected
 ⚔️ *Revenge* \\- Strike back\\!
 
 ━━━━━━━━━━━━━━━━━━━━
@@ -241,7 +241,7 @@ bot.onText(/\/withdraw/, async (msg) => {
 
 • Requests reviewed manually
 • Usually within 24 hours
-• You'll receive notification
+• You\\'ll receive notification
 
 ━━━━━━━━━━━━━━━━━━━━
 🚀 *Start withdrawing\\!*
@@ -289,7 +289,7 @@ async function sendPvPGuide(chatId) {
 🛡️ *SHIELDS*
 ━━━━━━━━━━━━━━━━━━━━
 
-• Active shield = Can't be attacked
+• Active shield \\= Can\\'t be attacked
 • Shield breaks after 1 attack
 • Buy more from Black Market
 
@@ -310,7 +310,7 @@ async function sendPvPGuide(chatId) {
 • Check PvP Leaderboard
 
 ━━━━━━━━━━━━━━━━━━━━
-🔥 *Ready to heist?*
+🔥 *Ready to heist\\?*
 `;
 
   await bot.sendMessage(chatId, pvpMessage, {
@@ -439,7 +439,7 @@ bot.on("callback_query", async (query) => {
 • Direct to your wallet\\!
 
 ━━━━━━━━━━━━━━━━━━━━
-🚀 *Let's go\\!*
+🚀 *Let\\'s go\\!*
 `;
       await bot.sendMessage(chatId, helpMessage, {
         parse_mode: "MarkdownV2",
