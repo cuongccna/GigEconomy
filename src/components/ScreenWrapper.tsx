@@ -27,7 +27,7 @@ export default function ScreenWrapper({
   showGrid = true,
   showOverlay = true,
 }: ScreenWrapperProps) {
-  const [topPadding, setTopPadding] = useState(16); // Default safe value
+  const [topPadding, setTopPadding] = useState(100); // Default safe value
 
   useEffect(() => {
     // Calculate proper top padding based on Telegram WebApp
@@ -37,7 +37,7 @@ export default function ScreenWrapper({
         // Minimal padding - just enough to avoid Telegram header overlap
         // iOS: 20px, Android: 16px (Telegram header is handled by expand())
         const platform = tg.platform || "unknown";
-        const defaultPadding = platform === "ios" ? 20 : 16;
+        const defaultPadding = platform === "ios" ? 100 : 95;
         
         setTopPadding(defaultPadding);
       }
