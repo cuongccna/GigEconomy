@@ -24,7 +24,8 @@ interface FriendsData {
 }
 
 // Bot username - replace with your actual bot username
-const BOT_USERNAME = "GigXBot";
+const BOT_USERNAME = "GigEcoBot";
+const APP_NAME = "GigEconomy";
 
 export default function FriendsPage() {
   const { user } = useAuth();
@@ -56,7 +57,7 @@ export default function FriendsPage() {
   }, [user]);
 
   const referralLink = data?.telegramId 
-    ? `https://t.me/${BOT_USERNAME}?start=ref_${data.telegramId}`
+    ? `https://t.me/${BOT_USERNAME}/${APP_NAME}?startapp=ref_${data.telegramId}`
     : "";
 
   const handleCopyLink = () => {
