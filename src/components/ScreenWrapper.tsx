@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 
 interface ScreenWrapperProps {
@@ -26,8 +27,33 @@ export default function ScreenWrapper({
   showGrid = true,
   showOverlay = true,
 }: ScreenWrapperProps) {
+  const [topPadding, setTopPadding] = useState(56); // Default safe value
+
+  useEffect(() => {
+    // Calculate proper top padding based on Telegram WebApp
+    const calculatePadding = () => {
+      if (typeof window !== "undefined" && window.Telegram?.WebApp) {
+        const tg = window.Telegram.WebApp;
+        // Telegram header is typically 44-56px, plus device safe area
+        // Use a safe default (56px for iOS, 48px for Android)
+        const platform = tg.platform || "unknown";
+        const defaultPadding = platform === "ios" ? 56 : 48;
+        
+        setTopPadding(defaultPadding);
+      }
+    };
+
+    calculatePadding();
+    
+    // Recalculate on resize
+    window.addEventListener("resize", calculatePadding);
+    return () => window.removeEventListener("resize", calculatePadding);
+  }, []);
+
   return (
-    <div className="min-h-screen flex flex-col bg-game-gradient relative">
+    <div 
+      className="fixed inset-0 flex flex-col bg-game-gradient overflow-hidden"
+    >
       {/* Cyberpunk Grid Background */}
       {showGrid && (
         <div className="absolute inset-0 cyber-grid z-0 pointer-events-none" />
@@ -42,12 +68,14 @@ export default function ScreenWrapper({
       <main
         className={cn(
           "relative z-10 flex-1",
-          "overflow-y-auto no-scrollbar",
-          "safe-top-padding safe-bottom-padding",
+          "overflow-y-auto overflow-x-hidden",
+          "no-scrollbar",
           "px-4",
           className
         )}
         style={{
+          paddingTop: `${topPadding}px`,
+          paddingBottom: "100px", // For bottom nav
           WebkitOverflowScrolling: "touch",
         }}
       >
