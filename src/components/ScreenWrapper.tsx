@@ -37,7 +37,7 @@ export default function ScreenWrapper({
         // Minimal padding - just enough to avoid Telegram header overlap
         // iOS: 20px, Android: 16px (Telegram header is handled by expand())
         const platform = tg.platform || "unknown";
-        const defaultPadding = platform === "ios" ? 65 : 16;
+        const defaultPadding = platform === "ios" ? 65 : 60;
         
         setTopPadding(defaultPadding);
       }
