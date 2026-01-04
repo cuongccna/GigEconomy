@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Zap, RotateCcw, Trophy, Skull, X, Sparkles, History, Play, CheckCircle } from "lucide-react";
 import confetti from "canvas-confetti";
 import { BottomNav } from "@/components/ui";
+import ScreenWrapper from "@/components/ScreenWrapper";
 import { useAdsgram } from "@/hooks/useAdsgram";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
@@ -242,7 +243,7 @@ export default function SpinPage() {
   const canSpin = balance >= SPIN_COST && !isSpinning;
 
   return (
-    <div className="min-h-screen dark-gradient cyber-grid px-4 pt-6 pb-28 flex flex-col">
+    <ScreenWrapper className="flex flex-col">
       {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
@@ -719,6 +720,6 @@ export default function SpinPage() {
       </AnimatePresence>
 
       <BottomNav activeTab="play" />
-    </div>
+    </ScreenWrapper>
   );
 }

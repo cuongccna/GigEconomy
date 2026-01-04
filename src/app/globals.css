@@ -43,9 +43,14 @@ body {
 /* ============================================
    SAFE AREA UTILITIES (CRITICAL)
    ============================================ */
-/* Top Safe Area: Notch + Telegram Header Buffer */
+/* Top Safe Area: Notch + Telegram Header Buffer (increased for Telegram mini app header) */
 .safe-top-padding {
-  padding-top: calc(env(safe-area-inset-top) + 24px);
+  padding-top: calc(env(safe-area-inset-top) + 60px);
+}
+
+/* Alternative: Fixed safe top for when env() doesn't work */
+.safe-top-fixed {
+  padding-top: 70px;
 }
 
 /* Bottom Safe Area: Home Indicator + Bottom Nav Height */

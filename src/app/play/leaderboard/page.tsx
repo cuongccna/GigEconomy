@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 /* eslint-disable @next/next/no-img-element */
 import { BottomNav } from "@/components/ui";
+import ScreenWrapper from "@/components/ScreenWrapper";
 import { cn } from "@/lib/utils";
 
 // Types
@@ -472,7 +473,7 @@ export default function PvPLeaderboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-black via-red-950/20 to-black px-4 pt-8 pb-28">
+    <ScreenWrapper showGrid={false}>
       {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
@@ -592,6 +593,6 @@ export default function PvPLeaderboardPage() {
 
       {/* Bottom Navigation */}
       <BottomNav activeTab="play" />
-    </div>
+    </ScreenWrapper>
   );
 }

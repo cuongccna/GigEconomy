@@ -13,6 +13,7 @@ import {
 
 /* eslint-disable @next/next/no-img-element */
 import { BottomNav } from "@/components/ui";
+import ScreenWrapper from "@/components/ScreenWrapper";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -308,7 +309,7 @@ export default function LeaderboardPage() {
   }
 
   return (
-    <div className="min-h-screen dark-gradient cyber-grid px-4 pt-6 pb-40">
+    <ScreenWrapper>
       {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
@@ -475,6 +476,6 @@ export default function LeaderboardPage() {
       )}
 
       <BottomNav activeTab="home" />
-    </div>
+    </ScreenWrapper>
   );
 }

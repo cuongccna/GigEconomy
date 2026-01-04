@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { useTonWallet, useTonConnectUI } from "@tonconnect/ui-react";
 import { NeonCard, BottomNav, LanguageDrawer } from "@/components/ui";
+import ScreenWrapper from "@/components/ScreenWrapper";
 import { useAuth } from "@/hooks/useAuth";
 import "@/types/telegram";
 
@@ -168,7 +169,7 @@ export default function ProfilePage() {
   ];
 
   return (
-    <div className="min-h-screen dark-gradient cyber-grid px-4 pt-8 pb-28">
+    <ScreenWrapper>
       {/* Avatar Section */}
       <motion.div
         initial={{ opacity: 0, scale: 0.8 }}
@@ -407,6 +408,6 @@ export default function ProfilePage() {
 
       {/* Bottom Navigation */}
       <BottomNav activeTab="home" />
-    </div>
+    </ScreenWrapper>
   );
 }

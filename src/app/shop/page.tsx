@@ -18,6 +18,7 @@ import {
   Star,
 } from "lucide-react";
 import { BottomNav } from "@/components/ui";
+import ScreenWrapper from "@/components/ScreenWrapper";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import confetti from "canvas-confetti";
@@ -270,7 +271,7 @@ export default function ShopPage() {
   }
 
   return (
-    <div className="min-h-screen dark-gradient cyber-grid px-4 pt-6 pb-32">
+    <ScreenWrapper>
       {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
@@ -639,6 +640,6 @@ export default function ShopPage() {
       />
 
       <BottomNav activeTab="home" />
-    </div>
+    </ScreenWrapper>
   );
 }

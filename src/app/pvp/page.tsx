@@ -15,6 +15,7 @@ import {
   RefreshCw
 } from "lucide-react";
 import { BottomNav } from "@/components/ui";
+import ScreenWrapper from "@/components/ScreenWrapper";
 import { cn } from "@/lib/utils";
 
 interface TargetInfo {
@@ -188,7 +189,7 @@ export default function PvPPage() {
   };
 
   return (
-    <div className="min-h-screen dark-gradient cyber-grid px-4 pt-8 pb-28">
+    <ScreenWrapper>
       {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
@@ -581,6 +582,6 @@ export default function PvPPage() {
       </div>
 
       <BottomNav activeTab="play" />
-    </div>
+    </ScreenWrapper>
   );
 }
