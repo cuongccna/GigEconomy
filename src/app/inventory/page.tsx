@@ -346,7 +346,7 @@ export default function InventoryPage() {
               exit={{ y: "100%" }}
               transition={{ type: "spring", damping: 25 }}
               onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-md max-h-[85vh] rounded-t-3xl bg-gradient-to-b from-gray-900 to-black border-t border-white/10 p-6 pb-10 overflow-y-auto"
+              className="relative w-full max-w-md max-h-[80vh] rounded-t-3xl bg-gradient-to-b from-gray-900 to-black border-t border-white/10 overflow-hidden flex flex-col"
             >
               {/* Close Button */}
               <button
@@ -354,10 +354,13 @@ export default function InventoryPage() {
                   setSelectedItem(null);
                   setUseResult(null);
                 }}
-                className="absolute top-4 right-4 p-2 rounded-full bg-white/10 hover:bg-white/20 transition-colors"
+                className="absolute top-4 right-4 z-10 p-2 rounded-full bg-white/10 hover:bg-white/20 transition-colors"
               >
                 <X size={20} className="text-white" />
               </button>
+              
+              {/* Scrollable Content */}
+              <div className="flex-1 overflow-y-auto p-6 pb-32">
 
               {/* Item Header */}
               <div className="flex items-center gap-4 mb-6">
@@ -462,34 +465,37 @@ export default function InventoryPage() {
                   </p>
                 </motion.div>
               )}
+              </div>
 
-              {/* Action Button */}
-              {selectedItem.type === "consumable" && selectedItem.quantity > 0 && (
-                <button
-                  onClick={() => handleUseItem(selectedItem)}
-                  disabled={isUsing}
-                  className={cn(
-                    "w-full py-4 rounded-xl font-bold text-lg",
-                    "bg-gradient-to-r from-neon-purple to-neon-green",
-                    "text-white shadow-[0_0_20px_rgba(128,0,255,0.4)]",
-                    "hover:shadow-[0_0_30px_rgba(128,0,255,0.6)]",
-                    "transition-all duration-300",
-                    "disabled:opacity-50 disabled:cursor-not-allowed"
-                  )}
-                >
-                  {isUsing ? (
-                    <Loader2 className="animate-spin mx-auto" size={24} />
-                  ) : (
-                    "USE ITEM"
-                  )}
-                </button>
-              )}
+              {/* Action Button - Fixed at bottom */}
+              <div className="absolute bottom-0 left-0 right-0 p-6 pt-4 bg-gradient-to-t from-black via-black to-transparent">
+                {selectedItem.type === "consumable" && selectedItem.quantity > 0 && (
+                  <button
+                    onClick={() => handleUseItem(selectedItem)}
+                    disabled={isUsing}
+                    className={cn(
+                      "w-full py-4 rounded-xl font-bold text-lg",
+                      "bg-gradient-to-r from-neon-purple to-neon-green",
+                      "text-white shadow-[0_0_20px_rgba(128,0,255,0.4)]",
+                      "hover:shadow-[0_0_30px_rgba(128,0,255,0.6)]",
+                      "transition-all duration-300",
+                      "disabled:opacity-50 disabled:cursor-not-allowed"
+                    )}
+                  >
+                    {isUsing ? (
+                      <Loader2 className="animate-spin mx-auto" size={24} />
+                    ) : (
+                      "USE ITEM"
+                    )}
+                  </button>
+                )}
 
-              {selectedItem.type === "permanent" && (
-                <div className="w-full py-4 rounded-xl bg-blue-500/20 text-blue-400 text-center font-bold">
-                  ✨ Always Active
-                </div>
-              )}
+                {selectedItem.type === "permanent" && (
+                  <div className="w-full py-4 rounded-xl bg-blue-500/20 text-blue-400 text-center font-bold">
+                    ✨ Always Active
+                  </div>
+                )}
+              </div>
             </motion.div>
           </motion.div>
         )}
