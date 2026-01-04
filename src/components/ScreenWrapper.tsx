@@ -27,38 +27,29 @@ export default function ScreenWrapper({
   showOverlay = true,
 }: ScreenWrapperProps) {
   return (
-    <div 
-      className="flex flex-col bg-game-gradient"
-      style={{
-        position: "fixed",
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        width: "100%",
-        height: "var(--tg-viewport-height, 100vh)",
-        minHeight: "-webkit-fill-available",
-      }}
-    >
+    <div className="min-h-screen flex flex-col bg-game-gradient relative">
       {/* Cyberpunk Grid Background */}
       {showGrid && (
-        <div className="absolute inset-0 cyber-grid z-0" />
+        <div className="absolute inset-0 cyber-grid z-0 pointer-events-none" />
       )}
 
       {/* Background Overlay for depth */}
       {showOverlay && (
-        <div className="absolute inset-0 bg-black/40 backdrop-blur-[1px] z-0" />
+        <div className="absolute inset-0 bg-black/40 z-0 pointer-events-none" />
       )}
 
       {/* Main Content Area with Safe Areas */}
       <main
         className={cn(
           "relative z-10 flex-1",
-          "scroll-container no-scrollbar",
+          "overflow-y-auto no-scrollbar",
           "safe-top-padding safe-bottom-padding",
           "px-4",
           className
         )}
+        style={{
+          WebkitOverflowScrolling: "touch",
+        }}
       >
         {children}
       </main>

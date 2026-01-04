@@ -43,19 +43,24 @@ body {
 /* ============================================
    SAFE AREA UTILITIES (CRITICAL)
    ============================================ */
-/* Top Safe Area: Notch + Telegram Header Buffer (increased for Telegram mini app header) */
+/* 
+ * Top Safe Area for Telegram Mini Apps:
+ * - Telegram handles its own header, we just need minimal spacing
+ * - env(safe-area-inset-top) handles device notch/dynamic island
+ * - Add small buffer (12px) for breathing room below Telegram header
+ */
 .safe-top-padding {
-  padding-top: calc(env(safe-area-inset-top) + 60px);
+  padding-top: max(env(safe-area-inset-top, 0px), 12px);
 }
 
-/* Alternative: Fixed safe top for when env() doesn't work */
-.safe-top-fixed {
-  padding-top: 70px;
+/* For pages that need more top space (like home with avatar) */
+.safe-top-padding-large {
+  padding-top: max(env(safe-area-inset-top, 0px), 20px);
 }
 
 /* Bottom Safe Area: Home Indicator + Bottom Nav Height */
 .safe-bottom-padding {
-  padding-bottom: calc(env(safe-area-inset-bottom) + 90px);
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 90px);
 }
 
 /* Scrollable Container */
