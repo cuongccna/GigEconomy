@@ -52,23 +52,27 @@ export function BottomNav({ activeTab = "home" }: BottomNavProps) {
       animate={{ y: 0 }}
       transition={{ type: "spring", stiffness: 300, damping: 30 }}
       className={cn(
-        "fixed bottom-4 left-4 right-4 z-40",
+        "fixed bottom-0 left-0 right-0 z-50",
         "flex items-center justify-around",
-        "py-3 rounded-2xl",
-        "backdrop-blur-xl bg-black/70 border border-white/10",
-        "shadow-[0_0_30px_rgba(0,0,0,0.5)]",
-        "max-w-md mx-auto"
+        "py-3",
+        "backdrop-blur-xl bg-black/80 border-t border-white/10",
+        "shadow-[0_-4px_30px_rgba(0,0,0,0.5)]"
       )}
+      style={{
+        paddingBottom: "calc(env(safe-area-inset-bottom) + 12px)",
+      }}
     >
-      {navItems.map((item) => (
-        <NavItemLink
-          key={item.id}
-          icon={item.icon}
-          label={item.label}
-          href={item.href}
-          isActive={activeTab === item.id}
-        />
-      ))}
+      <div className="flex items-center justify-around w-full max-w-md mx-auto">
+        {navItems.map((item) => (
+          <NavItemLink
+            key={item.id}
+            icon={item.icon}
+            label={item.label}
+            href={item.href}
+            isActive={activeTab === item.id}
+          />
+        ))}
+      </div>
     </motion.nav>
   );
 }

@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Copy, Check, Users, Gift, Sparkles } from "lucide-react";
 import { BottomNav } from "@/components/ui";
+import ScreenWrapper from "@/components/ScreenWrapper";
 import { useAuth } from "@/hooks/useAuth";
 import "@/types/telegram";
 
@@ -78,7 +79,7 @@ export default function FriendsPage() {
   };
 
   return (
-    <div className="min-h-screen dark-gradient cyber-grid px-4 pt-8 pb-28">
+    <ScreenWrapper>
       {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
@@ -248,6 +249,6 @@ export default function FriendsPage() {
 
       {/* Bottom Navigation */}
       <BottomNav activeTab="friends" />
-    </div>
+    </ScreenWrapper>
   );
 }

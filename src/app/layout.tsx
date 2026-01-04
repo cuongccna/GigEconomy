@@ -1,7 +1,10 @@
-import type { Metadata } from "next";
+"use client";
+
+import { useEffect } from "react";
 import localFont from "next/font/local";
 import Script from "next/script";
 import "./globals.css";
+import "@/types/telegram";
 import { TonProvider } from "@/components/TonProvider";
 import { AuthProvider } from "@/hooks/useAuth";
 import { AuthGuard } from "@/components/AuthGuard";
@@ -17,10 +20,26 @@ const geistMono = localFont({
   weight: "100 900",
 });
 
-export const metadata: Metadata = {
-  title: "GigX - Web3 Task Marketplace",
-  description: "Earn crypto by completing simple tasks",
-};
+function TelegramWebAppInit() {
+  useEffect(() => {
+    // Initialize Telegram WebApp
+    if (typeof window !== "undefined" && window.Telegram?.WebApp) {
+      const tg = window.Telegram.WebApp;
+      
+      // Force full screen immediately
+      tg.expand();
+      
+      // Set header color to blend with our dark background
+      tg.setHeaderColor("#000000");
+      tg.setBackgroundColor("#050505");
+      
+      // Enable closing confirmation if needed
+      tg.enableClosingConfirmation();
+    }
+  }, []);
+  
+  return null;
+}
 
 export default function RootLayout({
   children,
@@ -30,6 +49,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
         {/* Telegram Web App SDK - must load before app */}
         <Script
           src="https://telegram.org/js/telegram-web-app.js"
@@ -40,6 +60,7 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
         suppressHydrationWarning
       >
+        <TelegramWebAppInit />
         {/* Adsgram SDK - Load with Block ID */}
         <Script
           src={`https://sad.adsgram.ai/js/sad.min.js?v=2.0.0`}

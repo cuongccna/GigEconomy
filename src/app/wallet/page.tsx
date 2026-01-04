@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { Gem, Copy, Check, ArrowDownToLine } from "lucide-react";
 import { useTonWallet, TonConnectButton } from "@tonconnect/ui-react";
 import { BottomNav } from "@/components/ui";
+import ScreenWrapper from "@/components/ScreenWrapper";
 import { useAuth } from "@/hooks/useAuth";
 import WithdrawModal from "@/components/WithdrawModal";
 
@@ -61,7 +62,7 @@ export default function WalletPage() {
   };
 
   return (
-    <div className="min-h-screen dark-gradient cyber-grid px-4 pt-8 pb-28">
+    <ScreenWrapper>
       {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
@@ -277,6 +278,6 @@ export default function WalletPage() {
 
       {/* Bottom Navigation */}
       <BottomNav activeTab="wallet" />
-    </div>
+    </ScreenWrapper>
   );
 }

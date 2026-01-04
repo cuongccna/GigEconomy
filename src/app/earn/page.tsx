@@ -20,6 +20,7 @@ import {
   X,
 } from "lucide-react";
 import { BottomNav, DailyCheckInDrawer, FarmingCard, TaskCard } from "@/components/ui";
+import ScreenWrapper from "@/components/ScreenWrapper";
 import type { Task, ApiTask, TasksResponse } from "@/types/task";
 
 // Icon mapping from string to LucideIcon
@@ -284,7 +285,7 @@ export default function Home() {
   const completedCount = tasks.filter((t) => t.isCompleted).length;
 
   return (
-    <div className="min-h-screen dark-gradient cyber-grid px-4 pt-8 pb-28">
+    <ScreenWrapper>
       {/* Daily Gift Button - Fixed Position */}
       <motion.button
         initial={{ opacity: 0, scale: 0 }}
@@ -292,7 +293,7 @@ export default function Home() {
         transition={{ delay: 0.5, type: "spring" }}
         whileTap={{ scale: 0.9 }}
         onClick={() => setIsCheckInOpen(true)}
-        className="fixed top-4 right-4 z-30 p-3 rounded-full bg-neon-purple/20 border border-neon-purple/30 backdrop-blur-sm"
+        className="fixed top-4 right-4 z-30 p-3 rounded-full bg-neon-purple/20 border border-neon-purple/30 backdrop-blur-sm safe-top-padding"
       >
         <CalendarCheck size={24} className="text-neon-purple" />
         {/* Notification dot */}
@@ -564,6 +565,6 @@ export default function Home() {
 
       {/* Bottom Navigation */}
       <BottomNav activeTab="earn" />
-    </div>
+    </ScreenWrapper>
   );
 }

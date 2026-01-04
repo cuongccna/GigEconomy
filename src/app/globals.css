@@ -2,10 +2,62 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ============================================
+   BODY RESET - Telegram WebApp Optimized
+   ============================================ */
 body {
   background-color: #050505;
   color: #ffffff;
   font-family: "Courier Prime", ui-monospace, monospace;
+  min-height: 100vh;
+  /* Use Telegram's viewport height variable if available, else 100vh */
+  height: var(--tg-viewport-height, 100vh);
+  overflow: hidden; /* Prevent body scroll, we scroll inside the wrapper */
+  overscroll-behavior-y: none; /* No pull-to-refresh */
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* ============================================
+   SAFE AREA UTILITIES (CRITICAL)
+   ============================================ */
+/* Top Safe Area: Notch + Telegram Header Buffer */
+.safe-top-padding {
+  padding-top: calc(env(safe-area-inset-top) + 24px);
+}
+
+/* Bottom Safe Area: Home Indicator + Bottom Nav Height */
+.safe-bottom-padding {
+  padding-bottom: calc(env(safe-area-inset-bottom) + 90px);
+}
+
+/* Scrollable Container */
+.scroll-container {
+  height: 100%;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Hide Scrollbar */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* ============================================
+   GRADIENT BACKGROUNDS
+   ============================================ */
+/* Radial Gradient Background (Deep Purple to Black) */
+.bg-game-gradient {
+  background: radial-gradient(ellipse at top center, rgba(112, 0, 255, 0.25) 0%, transparent 50%),
+              radial-gradient(ellipse at bottom center, rgba(0, 255, 148, 0.15) 0%, transparent 50%),
+              radial-gradient(circle at 30% 70%, rgba(112, 0, 255, 0.1) 0%, transparent 40%),
+              #050505;
 }
 
 @layer utilities {

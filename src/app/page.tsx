@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { BottomNav, DailyCheckInDrawer } from "@/components/ui";
 import NotificationCenter from "@/components/NotificationCenter";
+import ScreenWrapper from "@/components/ScreenWrapper";
 import { cn } from "@/lib/utils";
 
 interface UserData {
@@ -158,7 +159,7 @@ export default function HomePage() {
   ];
 
   return (
-    <div className="min-h-screen dark-gradient cyber-grid px-4 pt-6 pb-28">
+    <ScreenWrapper>
       {/* Header - Avatar & Balance */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
@@ -372,6 +373,6 @@ export default function HomePage() {
 
       {/* Bottom Navigation */}
       <BottomNav activeTab="home" />
-    </div>
+    </ScreenWrapper>
   );
 }
