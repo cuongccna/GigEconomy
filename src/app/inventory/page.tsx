@@ -334,7 +334,7 @@ export default function InventoryPage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-end justify-center bg-black/80 backdrop-blur-sm"
+            className="fixed inset-0 z-[100] flex items-end justify-center bg-black/80 backdrop-blur-sm"
             onClick={() => {
               setSelectedItem(null);
               setUseResult(null);
@@ -346,7 +346,8 @@ export default function InventoryPage() {
               exit={{ y: "100%" }}
               transition={{ type: "spring", damping: 25 }}
               onClick={(e) => e.stopPropagation()}
-              className="relative w-full max-w-md max-h-[80vh] rounded-t-3xl bg-gradient-to-b from-gray-900 to-black border-t border-white/10 overflow-hidden flex flex-col"
+              className="relative w-full max-w-md rounded-t-3xl bg-gradient-to-b from-gray-900 to-black border-t border-white/10"
+              style={{ maxHeight: 'calc(100vh - 80px)', marginBottom: '70px' }}
             >
               {/* Close Button */}
               <button
@@ -360,7 +361,7 @@ export default function InventoryPage() {
               </button>
               
               {/* Scrollable Content */}
-              <div className="flex-1 overflow-y-auto p-6 pb-32">
+              <div className="overflow-y-auto p-6" style={{ maxHeight: 'calc(100vh - 180px)' }}>
 
               {/* Item Header */}
               <div className="flex items-center gap-4 mb-6">
@@ -465,10 +466,9 @@ export default function InventoryPage() {
                   </p>
                 </motion.div>
               )}
-              </div>
 
-              {/* Action Button - Fixed at bottom */}
-              <div className="absolute bottom-0 left-0 right-0 p-6 pt-4 bg-gradient-to-t from-black via-black to-transparent">
+              {/* Action Button */}
+              <div className="mt-4 pb-2">
                 {selectedItem.type === "consumable" && selectedItem.quantity > 0 && (
                   <button
                     onClick={() => handleUseItem(selectedItem)}
@@ -495,6 +495,7 @@ export default function InventoryPage() {
                     ✨ Always Active
                   </div>
                 )}
+              </div>
               </div>
             </motion.div>
           </motion.div>
