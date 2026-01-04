@@ -346,7 +346,7 @@ export default function InventoryPage() {
               exit={{ y: "100%" }}
               transition={{ type: "spring", damping: 25 }}
               onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-md rounded-t-3xl bg-gradient-to-b from-gray-900 to-black border-t border-white/10 p-6"
+              className="w-full max-w-md max-h-[85vh] rounded-t-3xl bg-gradient-to-b from-gray-900 to-black border-t border-white/10 p-6 pb-10 overflow-y-auto"
             >
               {/* Close Button */}
               <button
