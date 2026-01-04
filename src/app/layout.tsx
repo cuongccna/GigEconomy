@@ -22,19 +22,76 @@ const geistMono = localFont({
 
 function TelegramWebAppInit() {
   useEffect(() => {
-    // Initialize Telegram WebApp
-    if (typeof window !== "undefined" && window.Telegram?.WebApp) {
+    const initTelegram = () => {
+      if (typeof window === "undefined" || !window.Telegram?.WebApp) {
+        return;
+      }
+      
       const tg = window.Telegram.WebApp;
       
-      // Force full screen immediately
+      // Tell Telegram that app is ready
+      tg.ready();
+      
+      // Set colors to blend with dark background
+      try {
+        tg.setHeaderColor("#000000");
+        tg.setBackgroundColor("#050505");
+      } catch {
+        console.log("setHeaderColor not supported");
+      }
+      
+      // Expand to full height
       tg.expand();
       
-      // Set header color to blend with our dark background
-      tg.setHeaderColor("#000000");
-      tg.setBackgroundColor("#050505");
+      // Try requestFullscreen for newer Telegram versions (v8.0+)
+      if (tg.requestFullscreen) {
+        try {
+          tg.requestFullscreen();
+        } catch {
+          console.log("requestFullscreen not supported");
+        }
+      }
       
-      // Enable closing confirmation if needed
-      tg.enableClosingConfirmation();
+      // Listen for viewport changes and re-expand
+      if (tg.onEvent) {
+        tg.onEvent("viewportChanged", () => {
+          if (!tg.isExpanded) {
+            tg.expand();
+          }
+        });
+      }
+      
+      // Update CSS variable for viewport height
+      const updateViewportHeight = () => {
+        const vh = tg.viewportHeight || window.innerHeight;
+        document.documentElement.style.setProperty("--tg-viewport-height", `${vh}px`);
+      };
+      
+      updateViewportHeight();
+      
+      // Re-expand after a short delay to ensure it takes effect
+      setTimeout(() => {
+        tg.expand();
+        updateViewportHeight();
+      }, 100);
+      
+      // Enable closing confirmation
+      try {
+        tg.enableClosingConfirmation();
+      } catch {
+        console.log("enableClosingConfirmation not supported");
+      }
+    };
+
+    // Initialize immediately
+    initTelegram();
+    
+    // Also try again after DOM is fully loaded
+    if (document.readyState === "complete") {
+      initTelegram();
+    } else {
+      window.addEventListener("load", initTelegram);
+      return () => window.removeEventListener("load", initTelegram);
     }
   }, []);
   

@@ -27,7 +27,19 @@ export default function ScreenWrapper({
   showOverlay = true,
 }: ScreenWrapperProps) {
   return (
-    <div className="fixed inset-0 flex flex-col bg-game-gradient">
+    <div 
+      className="flex flex-col bg-game-gradient"
+      style={{
+        position: "fixed",
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        width: "100%",
+        height: "var(--tg-viewport-height, 100vh)",
+        minHeight: "-webkit-fill-available",
+      }}
+    >
       {/* Cyberpunk Grid Background */}
       {showGrid && (
         <div className="absolute inset-0 cyber-grid z-0" />

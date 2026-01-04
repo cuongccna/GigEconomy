@@ -14,6 +14,13 @@ export interface TelegramWebApp {
     start_param?: string;
     user?: TelegramUser;
   };
+  // Properties
+  isExpanded?: boolean;
+  viewportHeight?: number;
+  viewportStableHeight?: number;
+  platform?: string;
+  version?: string;
+  // Methods
   ready: () => void;
   expand: () => void;
   close: () => void;
@@ -21,6 +28,11 @@ export interface TelegramWebApp {
   setBackgroundColor: (color: string) => void;
   enableClosingConfirmation: () => void;
   disableClosingConfirmation: () => void;
+  requestFullscreen?: () => void;
+  exitFullscreen?: () => void;
+  isFullscreen?: boolean;
+  onEvent?: (eventType: string, callback: () => void) => void;
+  offEvent?: (eventType: string, callback: () => void) => void;
   HapticFeedback?: {
     impactOccurred: (style: "light" | "medium" | "heavy" | "rigid" | "soft") => void;
     notificationOccurred: (type: "error" | "success" | "warning") => void;

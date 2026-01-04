@@ -3,21 +3,41 @@
 @tailwind utilities;
 
 /* ============================================
-   BODY RESET - Telegram WebApp Optimized
+   ROOT VARIABLES
    ============================================ */
+:root {
+  --tg-viewport-height: 100vh;
+  --tg-viewport-stable-height: 100vh;
+}
+
+/* ============================================
+   HTML & BODY RESET - Telegram WebApp Optimized
+   ============================================ */
+html {
+  height: 100%;
+  height: -webkit-fill-available;
+}
+
 body {
   background-color: #050505;
   color: #ffffff;
   font-family: "Courier Prime", ui-monospace, monospace;
+  /* Multiple fallbacks for height */
   min-height: 100vh;
-  /* Use Telegram's viewport height variable if available, else 100vh */
-  height: var(--tg-viewport-height, 100vh);
+  min-height: -webkit-fill-available;
+  min-height: var(--tg-viewport-height, 100vh);
+  height: 100%;
+  margin: 0;
+  padding: 0;
   overflow: hidden; /* Prevent body scroll, we scroll inside the wrapper */
   overscroll-behavior-y: none; /* No pull-to-refresh */
   -webkit-tap-highlight-color: transparent;
   -webkit-touch-callout: none;
   -webkit-user-select: none;
   user-select: none;
+  /* Ensure content fills the screen */
+  display: flex;
+  flex-direction: column;
 }
 
 /* ============================================
